@@ -514,11 +514,11 @@ public class CommitProcessor {
       testCommand.add("--show-version");
 
       if (commit.getTests().size() > 0) {
-         testCommand.add("--activate-profiles=dev,tests,redhat-ga,redhat-brew,redhat-pnc");
+         testCommand.add("--activate-profiles=dev,tests,redhat-indy");
          testCommand.add("--define=failIfNoTests=false");
          testCommand.add("--define=test=" + String.join(",", commit.getTests()));
       } else {
-         testCommand.add("--activate-profiles=dev,redhat-ga,redhat-brew,redhat-pnc");
+         testCommand.add("--activate-profiles=dev,redhat-indy");
          testCommand.add("--define=skipTests=true");
       }
 
