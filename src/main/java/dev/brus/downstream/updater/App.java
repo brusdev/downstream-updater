@@ -272,22 +272,30 @@ public class App {
 
       // Load upstream commits
       Deque<GitCommit> upstreamCommits = new ArrayDeque<>();
+      HashMap<String, GitCommit> upstreamRevertingCommits = new HashMap<>();
       for (GitCommit commit : gitRepository.log("upstream/" + upstreamBranch, "origin/" + downstreamBranch)) {
          if (!commit.getShortMessage().startsWith("Merge pull request")) {
             upstreamCommits.push(commit);
+
+            Matcher revertedCommitMatcher = revertedCommitPattern.matcher(commit.getFullMessage());
+
+            if (revertedCommitMatcher.find()) {
+               logger.info("upstream reverting commit: " + revertedCommitMatcher.group(1));
+               upstreamRevertingCommits.put(revertedCommitMatcher.group(1), commit);
+            }
          }
       }
 
 
       // Load cherry-picked commits
-      HashMap<String, GitCommit> revertedCommits = new HashMap<>();
+      HashMap<String, GitCommit> downstreamRevertedCommits = new HashMap<>();
       Deque<Map.Entry<GitCommit, ReleaseVersion>> downstreamCommits = new ArrayDeque<>();
       HashMap<String, Map.Entry<GitCommit, ReleaseVersion>> cherryPickedCommits = new HashMap<>();
       ReleaseVersion cherryPickedReleaseVersion = candidateReleaseVersion;
       for (GitCommit commit : gitRepository.log("origin/" + downstreamBranch, "upstream/" + upstreamBranch)) {
 
          //Check if the commit is reverted
-         if (revertedCommits.remove(commit.getName()) == null) {
+         if (downstreamRevertedCommits.remove(commit.getName()) == null) {
 
             // Search prepare release commits to extract the release version
             Matcher prepareReleaseCommitMatcher = prepareReleaseCommitPattern.matcher(commit.getShortMessage());
@@ -334,13 +342,27 @@ public class App {
                   Matcher revertedCommitMatcher = revertedCommitPattern.matcher(commit.getFullMessage());
 
                   if (revertedCommitMatcher.find()) {
-                     logger.info("reverting commit: " + revertedCommitMatcher.group(1));
-                     revertedCommits.put(revertedCommitMatcher.group(1), commit);
+                     logger.info("downstream reverting commit: " + revertedCommitMatcher.group(1));
+                     downstreamRevertedCommits.put(revertedCommitMatcher.group(1), commit);
                   }
                }
             }
          } else {
-            logger.info("reverted commit: " + commit.getName() + " - " + commit.getShortMessage());
+            logger.info("downstream reverted commit: " + commit.getName() + " - " + commit.getShortMessage());
+         }
+      }
+
+
+      //Skip upstream reverted commits not cherry-picked
+      for (Map.Entry<String, GitCommit> upstreamRevertingCommitEntry : upstreamRevertingCommits.entrySet()) {
+
+         GitCommit upstreamRevertedCommit = upstreamCommits.stream().filter(
+            upstreamCommit -> upstreamCommit.getName().equals(upstreamRevertingCommitEntry.getKey())).findAny().orElse(null);
+
+         if (upstreamRevertedCommit != null && !cherryPickedCommits.containsKey(upstreamRevertingCommitEntry.getKey())) {
+            logger.info("upstream reverted commit: " + upstreamRevertedCommit.getName() + " - " + upstreamRevertedCommit.getShortMessage());
+            upstreamCommits.remove(upstreamRevertedCommit);
+            upstreamCommits.remove(upstreamRevertingCommitEntry.getValue());
          }
       }
 
