@@ -75,7 +75,7 @@ public class App {
    public static void main(String[] args) throws Exception {
       // Parse arguments
       Options options = new Options();
-      options.addOption(createOption(null, ASSIGNEE_OPTION, true, true, false, "the default assignee, i.e. dbruscin"));
+      options.addOption(createOption("a", ASSIGNEE_OPTION, true, true, false, "the default assignee, i.e. dbruscin"));
       options.addOption(createOption(null, RELEASE_OPTION, true, true, false, "the release, i.e. AMQ 7.10.0.GA"));
       options.addOption(createOption(null, QUALIFIER_OPTION, true, true, false, "the qualifier, i.e. CR1"));
       options.addOption(createOption(null, UPSTREAM_REPOSITORY_OPTION, true, true, false, "the upstream repository to cherry-pick from, i.e. https://github.com/apache/activemq-artemis.git"));
@@ -98,13 +98,13 @@ public class App {
       options.addOption(createOption(null, DRY_RUN_OPTION, false, false, false, "dry run"));
       options.addOption(createOption(null, SKIP_COMMIT_TEST_OPTION, false, false, true, "skip commit test"));
 
-      CommandLine line = null;
+      CommandLine line;
       CommandLineParser parser = new DefaultParser();
 
       try {
          line = parser.parse(options, args);
       } catch (ParseException e) {
-         logger.error("Error on parsing arguments", e);
+         throw new RuntimeException("Error on parsing arguments", e);
       }
 
       String assignee = line.getOptionValue(ASSIGNEE_OPTION);
@@ -175,7 +175,9 @@ public class App {
       // Initialize target directory
       File targetDir = new File("target");
       if (!targetDir.exists()) {
-         targetDir.mkdir();
+         if (!targetDir.mkdir()) {
+            throw new RuntimeException("Error creating target directory");
+         }
       }
 
 
@@ -309,7 +311,7 @@ public class App {
                downstreamCommits.push(new AbstractMap.SimpleEntry<>(commit, cherryPickedReleaseVersion));
 
                //Check if the commit is cherry-picked
-               GitCommit cherryPickedCommit = null;
+               GitCommit cherryPickedCommit;
                Matcher cherryPickedCommitMatcher = cherryPickedCommitPattern.matcher(commit.getFullMessage());
                if (cherryPickedCommitMatcher.find()) {
                   String cherryPickedCommitName = cherryPickedCommitMatcher.group(1);
@@ -394,7 +396,12 @@ public class App {
 
       // Initialize test dir
       File commitTestsDir = new File(targetDir, "commit-tests");
-      commitTestsDir.mkdirs();
+      if (commitTestsDir.exists()) {
+         FileUtils.deleteDirectory(commitTestsDir);
+      }
+      if (!commitTestsDir.mkdirs()) {
+         throw new RuntimeException("Error creating commit tests directory");
+      }
 
 
       // Init commit parser
@@ -402,6 +409,15 @@ public class App {
          gitRepository, candidateReleaseVersion, upstreamIssueManager, downstreamIssueManager, userResolver,
          cherryPickedCommits, confirmedCommits, confirmedDownstreamIssues, excludedDownstreamIssues, confirmedUpstreamIssues, excludedUpstreamIssues,
          downstreamIssuesCustomerPriority, downstreamIssuesSecurityImpact, checkIncompleteCommits, dryRun, skipCommitTest, commitTestsDir);
+
+
+      //Delete current commits file
+      File commitsFile = new File(targetDir, "commits.json");
+      if (commitsFile.exists()) {
+         if (!commitsFile.delete()) {
+            throw new RuntimeException("Error deleting commits file");
+         }
+      }
 
 
       // Process upstream commits
@@ -414,10 +430,6 @@ public class App {
          }
       } finally {
          // Store commits
-         File commitsFile = new File(targetDir, "commits.json");
-         if (commitsFile.exists()) {
-            commitsFile.delete();
-         }
          FileUtils.writeStringToFile(commitsFile, gson.toJson(commits.stream()
             .filter(commit -> (commit.getState() != Commit.State.SKIPPED && commit.getState() != Commit.State.DONE) ||
                (commit.getState() == Commit.State.DONE && commit.getTasks().stream()
@@ -435,13 +447,13 @@ public class App {
 
       File payloadFile = new File(targetDir, "payload.csv");
       try (CSVPrinter printer = new CSVPrinter(new FileWriter(payloadFile), CSVFormat.DEFAULT
-         .withHeader(new String[]{ "state", "release", "upstreamCommit", "downstreamCommit", "author", "summary", "upstreamIssue", "downstreamIssues", "upstreamTestCoverage"}))) {
+         .withHeader("state", "release", "upstreamCommit", "downstreamCommit", "author", "summary", "upstreamIssue", "downstreamIssues", "upstreamTestCoverage"))) {
 
          for (Map.Entry<GitCommit, ReleaseVersion> downstreamCommit : downstreamCommits) {
             Commit processedCommit = commits.stream().filter(commit -> downstreamCommit.getKey().getName().equals(commit.getDownstreamCommit())).findFirst().orElse(null);
 
             printer.printRecord("DONE", downstreamCommit.getValue(), processedCommit != null ? processedCommit.getUpstreamCommit() : "", downstreamCommit.getKey().getName(), downstreamCommit.getKey().getAuthorName(), downstreamCommit.getKey().getShortMessage(),
-                                processedCommit != null ? processedCommit.getUpstreamIssue() : "", String.join(" ", processedCommit != null ? processedCommit.getDownstreamIssues() : Collections.emptyList()), processedCommit != null ? processedCommit.getTests().size() > 0 : false);
+                                processedCommit != null ? processedCommit.getUpstreamIssue() : "", String.join(" ", processedCommit != null ? processedCommit.getDownstreamIssues() : Collections.emptyList()), processedCommit != null && processedCommit.getTests().size() > 0);
          }
 
          for (Commit commit : commits.stream()
