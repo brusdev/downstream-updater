@@ -65,7 +65,6 @@ public class App {
    private static final String DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY = "downstream-issues-customer-priority";
    private static final String DOWNSTREAM_ISSUES_SECURITY_IMPACT = "downstream-issues-security-impact";
    private static final String RELEASE_OPTION = "release";
-   private static final String QUALIFIER_OPTION = "qualifier";
    private static final String ASSIGNEE_OPTION = "assignee";
    private static final String CHECK_INCOMPLETE_COMMITS_OPTION = "check-incomplete-commits";
    private static final String DRY_RUN_OPTION = "dry-run";
@@ -76,8 +75,7 @@ public class App {
       // Parse arguments
       Options options = new Options();
       options.addOption(createOption("a", ASSIGNEE_OPTION, true, true, false, "the default assignee, i.e. dbruscin"));
-      options.addOption(createOption(null, RELEASE_OPTION, true, true, false, "the release, i.e. AMQ 7.10.0.GA"));
-      options.addOption(createOption(null, QUALIFIER_OPTION, true, true, false, "the qualifier, i.e. CR1"));
+      options.addOption(createOption(null, RELEASE_OPTION, true, true, false, "the release, i.e. 7.11.0.CR1"));
       options.addOption(createOption(null, UPSTREAM_REPOSITORY_OPTION, true, true, false, "the upstream repository to cherry-pick from, i.e. https://github.com/apache/activemq-artemis.git"));
       options.addOption(createOption(null, UPSTREAM_BRANCH_OPTION, true, true, false, "the upstream branch to cherry-pick from, i.e. main"));
       options.addOption(createOption(null, DOWNSTREAM_REPOSITORY_OPTION, true, true, false, "the downstream repository to cherry-pick to, i.e. https://github.com/rh-messaging/activemq-artemis.git"));
@@ -110,8 +108,7 @@ public class App {
       String assignee = line.getOptionValue(ASSIGNEE_OPTION);
 
       String release = line.getOptionValue(RELEASE_OPTION);
-      String qualifier = line.getOptionValue(QUALIFIER_OPTION);
-      ReleaseVersion candidateReleaseVersion = new ReleaseVersion(release + "." + qualifier);
+      ReleaseVersion candidateReleaseVersion = new ReleaseVersion(release);
 
       String upstreamRepository = line.getOptionValue(UPSTREAM_REPOSITORY_OPTION);
       String upstreamBranch = line.getOptionValue(UPSTREAM_BRANCH_OPTION);
