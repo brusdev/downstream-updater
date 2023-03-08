@@ -39,7 +39,7 @@ public class Commit {
    private String author;
    private String summary;
    private String reason;
-   private String releaseVersion;
+   private String release;
    private List<String> tests;
    private List<CommitTask> tasks;
 
@@ -142,12 +142,12 @@ public class Commit {
       return this;
    }
 
-   public String getReleaseVersion() {
-      return releaseVersion;
+   public String getRelease() {
+      return release;
    }
 
-   public Commit setReleaseVersion(String releaseVersion) {
-      this.releaseVersion = releaseVersion;
+   public Commit setRelease(String release) {
+      this.release = release;
       return this;
    }
 }

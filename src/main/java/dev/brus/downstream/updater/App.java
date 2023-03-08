@@ -456,7 +456,7 @@ public class App {
          for (Commit commit : commits.stream()
             .filter(commit -> (commit.getState() != Commit.State.SKIPPED && commit.getState() != Commit.State.DONE))
             .collect(Collectors.toList())) {
-            printer.printRecord(commit.getState(), commit.getReleaseVersion(), commit.getUpstreamCommit(), commit.getDownstreamCommit(), commit.getAuthor(), commit.getSummary(),
+            printer.printRecord(commit.getState(), commit.getRelease(), commit.getUpstreamCommit(), commit.getDownstreamCommit(), commit.getAuthor(), commit.getSummary(),
                                 commit.getUpstreamIssue(), String.join(" ", commit.getDownstreamIssues()), commit.getTests().size() > 0);
          }
       }

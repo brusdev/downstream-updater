@@ -176,7 +176,7 @@ public class CommitProcessor {
 
 
       commit.setAuthor(upstreamCommit.getAuthorName());
-      commit.setReleaseVersion(candidateReleaseVersion.toString());
+      commit.setRelease(candidateReleaseVersion.toString());
       commit.setDownstreamCommit(cherryPickedCommit != null ? cherryPickedCommit.getKey().getName() : null);
       commit.setTests(getCommitTests(upstreamCommit));
 
