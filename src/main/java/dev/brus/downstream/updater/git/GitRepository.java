@@ -14,6 +14,8 @@ public interface GitRepository {
 
    GitRepository clone(String uri, File dir) throws Exception;
 
+   void close() throws Exception;
+
    GitCommit resolveCommit(String name) throws Exception;
 
    boolean cherryPick(GitCommit commit) throws Exception;

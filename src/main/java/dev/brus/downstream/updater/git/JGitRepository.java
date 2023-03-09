@@ -49,6 +49,11 @@ public class JGitRepository implements GitRepository {
       return this;
    }
 
+   @Override
+   public void close() throws Exception {
+      git.close();
+   }
+
    public GitCommit resolveCommit(String name) throws Exception {
       RevCommit revCommit = git.getRepository().parseCommit(git.getRepository().resolve(name));
 

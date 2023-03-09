@@ -464,6 +464,8 @@ public class App {
                                 commit.getUpstreamIssue(), String.join(" ", commit.getDownstreamIssues()), commit.getTests().size() > 0);
          }
       }
+
+      gitRepository.close();
    }
 
    private static Map<String, Issue> loadIssues(String issueKeys, IssueManager issueManager) {
