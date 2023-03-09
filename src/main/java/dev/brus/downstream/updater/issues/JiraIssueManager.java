@@ -24,11 +24,17 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -59,13 +65,15 @@ public class JiraIssueManager implements IssueManager {
    private final static Pattern upstreamIssuePattern = Pattern.compile("ARTEMIS-[0-9]+");
    private final static Pattern securityImpactPattern = Pattern.compile("Impact: (Critical|Important|Moderate|Low)");
 
+   private final static String dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
+
    private String serverURL;
    private String authString;
    private String projectKey;
 
    private Map<String, Issue> issues;
 
-   private Gson gson = new GsonBuilder().setPrettyPrinting().create();
+   private Gson gson = new GsonBuilder().setDateFormat(dateFormat).setPrettyPrinting().create();
 
    private IssueStateMachine issueStateMachine;
 
@@ -124,11 +132,15 @@ public class JiraIssueManager implements IssueManager {
 
       String issueKey = postIssue(issueObject);
 
-      Issue issue = parseIssue(loadIssue(issueKey), true);
+      Issue issue = parseIssue(loadIssue(issueKey), true, createDateFormat());
 
       issues.put(issue.getKey(), issue);
 
       return issue;
+   }
+
+   private DateFormat createDateFormat() {
+      return new SimpleDateFormat(dateFormat, Locale.ENGLISH);
    }
 
    private String postIssue(JsonObject issueObject) throws Exception {
@@ -382,10 +394,21 @@ public class JiraIssueManager implements IssueManager {
 
    @Override
    public void loadIssues(boolean parseCustomFields) throws Exception {
+      loadIssues(parseCustomFields, (Date)null);
+   }
+
+   private void loadIssues(boolean parseCustomFields, Date lastUpdated) throws Exception {
       int total = 0;
       final int MAX_RESULTS = 250;
 
-      HttpURLConnection searchConnection = createConnection("/search?jql=project=%22" + projectKey + "%22&maxResults=0");
+      String lastUpdatedQuery = "";
+      if (lastUpdated != null) {
+         SimpleDateFormat queryDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+         lastUpdatedQuery = " AND updated >= '" + queryDateFormat.format(lastUpdated) + "'";
+      }
+      String jql = URLEncoder.encode("project = '" + projectKey + "'" + lastUpdatedQuery, StandardCharsets.UTF_8);
+
+      HttpURLConnection searchConnection = createConnection("/search?jql=" + jql + "&maxResults=0");
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
             JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
@@ -402,7 +425,7 @@ public class JiraIssueManager implements IssueManager {
       for (int i = 0; i < taskCount; i++) {
          final int start = i * MAX_RESULTS;
 
-         tasks.add(() -> loadIssues(parseCustomFields, start, MAX_RESULTS));
+         tasks.add(() -> loadIssues(parseCustomFields, jql, start, MAX_RESULTS));
       }
 
       long beginTimestamp = System.nanoTime();
@@ -424,20 +447,21 @@ public class JiraIssueManager implements IssueManager {
    }
 
 
-   public int loadIssues(boolean parseCustomFields, int start, int maxResults) throws Exception {
+   private int loadIssues(boolean parseCustomFields, String jql, int start, int maxResults) throws Exception {
       int result = 0;
 
-      HttpURLConnection connection = createConnection("/search?jql=project=%22" + projectKey + "%22&fields=*all&maxResults=" + maxResults + "&startAt=" + start);
+      HttpURLConnection connection = createConnection("/search?jql=" + jql + "&fields=*all&maxResults=" + maxResults + "&startAt=" + start);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
             JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
 
             JsonArray issuesArray = jsonObject.getAsJsonArray("issues");
 
+            DateFormat dateFormat = createDateFormat();
             for (JsonElement issueElement : issuesArray) {
                JsonObject issueObject = issueElement.getAsJsonObject();
 
-               Issue issue = parseIssue(issueObject, parseCustomFields);
+               Issue issue = parseIssue(issueObject, parseCustomFields, dateFormat);
 
                issues.put(issue.getKey(), issue);
 
@@ -452,12 +476,19 @@ public class JiraIssueManager implements IssueManager {
    }
 
    @Override
-   public void loadIssues(File file) throws Exception {
+   public void loadIssues(boolean parseCustomFields, File file) throws Exception {
       Issue[] issuesArray = gson.fromJson(FileUtils.readFileToString(file, Charset.defaultCharset()), Issue[].class);
 
+      Date lastUpdated = new Date(0);
       for (Issue issue : issuesArray) {
          issues.put(issue.getKey(), issue);
+
+         if (lastUpdated.before(issue.getUpdated())) {
+            lastUpdated = issue.getUpdated();
+         }
       }
+
+      loadIssues(parseCustomFields, lastUpdated);
    }
 
    @Override
@@ -465,7 +496,7 @@ public class JiraIssueManager implements IssueManager {
       FileUtils.writeStringToFile(file, gson.toJson(issues.values()), Charset.defaultCharset());
    }
 
-   private Issue parseIssue(JsonObject issueObject, boolean parseCustomFields) {
+   private Issue parseIssue(JsonObject issueObject, boolean parseCustomFields, DateFormat dateFormat) throws Exception {
       String issueKey = issueObject.getAsJsonPrimitive("key").getAsString();
       logger.debug("loading issue " + issueKey);
 
@@ -482,6 +513,8 @@ public class JiraIssueManager implements IssueManager {
          null : issueDescriptionElement.getAsString();
       String issueType = issueFields.getAsJsonObject("issuetype").getAsJsonPrimitive("name").getAsString();
       String issueSummary = issueFields.getAsJsonPrimitive("summary").getAsString();
+      Date issueCreated = dateFormat.parse(issueFields.getAsJsonPrimitive("created").getAsString());
+      Date issueUpdated = dateFormat.parse(issueFields.getAsJsonPrimitive("updated").getAsString());
 
       Issue issue = new Issue()
          .setKey(issueKey)
@@ -491,6 +524,8 @@ public class JiraIssueManager implements IssueManager {
          .setState(issueStatus)
          .setSummary(issueSummary)
          .setDescription(issueDescription)
+         .setCreated(issueCreated)
+         .setUpdated(issueUpdated)
          .setType(issueType);
 
       for (String label : parseLabels(issueFields.get("labels"))) {

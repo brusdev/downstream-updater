@@ -227,7 +227,11 @@ public class App {
       IssueManager upstreamIssueManager = new JiraIssueManager(
          "https://issues.apache.org/jira/rest/api/2", upstreamIssuesAuthString, "ARTEMIS", new ApacheIssueStateMachine());
       if (upstreamIssuesFile.exists()) {
-         upstreamIssueManager.loadIssues(upstreamIssuesFile);
+         upstreamIssueManager.loadIssues(false, upstreamIssuesFile);
+
+         for (Issue issue : upstreamIssueManager.getIssues()) {
+            issue.getIssues().clear();
+         }
       } else {
          upstreamIssueManager.loadIssues(false);
       }
@@ -237,26 +241,26 @@ public class App {
       File downstreamIssuesFile = new File(targetDir, "downstream-issues.json");
       IssueManager downstreamIssueManager = new JiraIssueManager("https://issues.redhat.com/rest/api/2", downstreamIssuesAuthString, "ENTMQBR", new RedHatIssueStateMachine());
       if (downstreamIssuesFile.exists()) {
-         downstreamIssueManager.loadIssues(downstreamIssuesFile);
+         downstreamIssueManager.loadIssues(true, downstreamIssuesFile);
       } else {
          downstreamIssueManager.loadIssues(true);
+      }
 
-         for (Issue issue : downstreamIssueManager.getIssues()) {
-            for (String upstreamIssueKey : issue.getIssues()) {
-               Issue upstreamIssue = upstreamIssueManager.getIssue(upstreamIssueKey);
+      // Link upstream issues
+      for (Issue issue : downstreamIssueManager.getIssues()) {
+         for (String upstreamIssueKey : issue.getIssues()) {
+            Issue upstreamIssue = upstreamIssueManager.getIssue(upstreamIssueKey);
 
-               if (upstreamIssue != null) {
-                  logger.debug("upstream issue " + upstreamIssueKey + " linked to downstream issue " + issue.getKey());
-                  if (!upstreamIssue.getIssues().contains(issue.getKey())) {
-                     upstreamIssue.getIssues().add(issue.getKey());
-                  }
-               } else {
-                  logger.warn("upstream issue " + upstreamIssueKey + " not found for downstream issue " + issue.getKey());
+            if (upstreamIssue != null) {
+               logger.debug("upstream issue " + upstreamIssueKey + " linked to downstream issue " + issue.getKey());
+               if (!upstreamIssue.getIssues().contains(issue.getKey())) {
+                  upstreamIssue.getIssues().add(issue.getKey());
                }
+            } else {
+               logger.warn("upstream issue " + upstreamIssueKey + " not found for downstream issue " + issue.getKey());
             }
          }
       }
-
 
       // Store upstream issues
       if (!upstreamIssuesFile.exists()) {

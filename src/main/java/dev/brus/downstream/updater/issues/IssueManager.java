@@ -27,7 +27,7 @@ public interface IssueManager {
 
    void loadIssues(boolean parseCustomFields) throws Exception;
 
-   void loadIssues(File file) throws Exception;
+   void loadIssues(boolean parseCustomFields, File file) throws Exception;
 
    Issue getIssue(String key);
 

@@ -18,6 +18,7 @@
 package dev.brus.downstream.updater.issues;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 public class Issue {
@@ -31,6 +32,8 @@ public class Issue {
    private String description;
    private List<String> labels;
    private List<String> issues;
+   private Date created;
+   private Date updated;
 
    private boolean customer;
    private IssueCustomerPriority customerPriority;
@@ -175,6 +178,24 @@ public class Issue {
 
    public Issue setSummary(String summary) {
       this.summary = summary;
+      return this;
+   }
+
+   public Date getCreated() {
+      return created;
+   }
+
+   public Issue setCreated(Date created) {
+      this.created = created;
+      return this;
+   }
+
+   public Date getUpdated() {
+      return updated;
+   }
+
+   public Issue setUpdated(Date updated) {
+      this.updated = updated;
       return this;
    }
 }
