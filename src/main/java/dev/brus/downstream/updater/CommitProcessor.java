@@ -161,7 +161,7 @@ public class CommitProcessor {
 
          if (upstreamIssueMatcher.find() && cherryPickedCommit == null) {
             logger.warn("SKIPPED because the commit message includes multiple upstream issue keys");
-            commit.setState(Commit.State.FAILED).setReason("MULTIPLE_UPSTREAM_ISSUES");
+            commit.setState(Commit.State.INVALID).setReason("MULTIPLE_UPSTREAM_ISSUES");
             return commit;
          }
 
@@ -169,7 +169,7 @@ public class CommitProcessor {
 
          if (upstreamIssue == null && cherryPickedCommit == null) {
             logger.warn("SKIPPED because the upstream issue is not found: " + upstreamIssueKey);
-            commit.setState(Commit.State.FAILED).setReason("UPSTREAM_ISSUE_NOT_FOUND");
+            commit.setState(Commit.State.INVALID).setReason("UPSTREAM_ISSUE_NOT_FOUND");
             return commit;
          }
       }
@@ -287,7 +287,7 @@ public class CommitProcessor {
                      if (cloneDownstreamIssues(commit, release, qualifier, selectedDownstreamIssues, confirmedTasks)) {
                         commit.setState(Commit.State.DONE);
                      } else {
-                        commit.setState(Commit.State.BLOCKED).setReason("NO_DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE");
+                        commit.setState(Commit.State.NEW).setReason("NO_DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE");
                      }
                   } else {
                      // The commits related to downstream issues already fixed in a previous release do not require
@@ -324,7 +324,7 @@ public class CommitProcessor {
 
             if ((confirmedUpstreamIssues != null && confirmedUpstreamIssues.containsKey(upstreamIssue.getKey())) ||
                (!isUpstreamIssueExcluded(upstreamIssue) && upstreamIssue.getType().equals(UPSTREAM_ISSUE_BUG_TYPE))) {
-               commit.setState(Commit.State.BLOCKED);
+               commit.setState(Commit.State.NEW);
                processCommitTask(commit, release, qualifier, CommitTask.Type.CLONE_UPSTREAM_ISSUE, upstreamIssue.getKey(), null, confirmedTasks);
             } else {
                commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_NOT_SUFFICIENT");
