@@ -259,8 +259,11 @@ public class CommitProcessor {
          confirmedTasks = confirmedCommit.getTasks();
       }
 
-      Commit commit = new Commit().setUpstreamCommit(upstreamCommit.getName())
-         .setSummary(upstreamCommit.getShortMessage()).setState(Commit.State.DONE);
+      Commit commit = new Commit().setUpstreamCommit(
+         upstreamCommit.getName()).
+         setSummary(upstreamCommit.getShortMessage()).
+         setAssignee(userResolver.getDefaultUser().getUsername()).
+         setState(Commit.State.DONE);
 
       Matcher upstreamIssueMatcher = upstreamIssuePattern.matcher(upstreamCommit.getShortMessage());
 
