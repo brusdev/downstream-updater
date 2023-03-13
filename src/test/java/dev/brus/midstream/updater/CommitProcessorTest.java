@@ -11,6 +11,7 @@ import dev.brus.downstream.updater.users.User;
 import dev.brus.downstream.updater.users.UserResolver;
 import dev.brus.midstream.updater.git.MockGitCommit;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -21,6 +22,33 @@ public class CommitProcessorTest {
    private final static String DOWNSTREAM_ISSUE_KEY_0 = "ENTMQBR-0";
    private final static String TEST_USERNAME = "test";
    private final static String TEST_EMAIL_ADDRESS = "test@user.com";
+
+   private ReleaseVersion testCandidateReleaseVersion;
+   private User testUser;
+
+   private GitRepository gitRepository;
+
+   private UserResolver userResolver;
+
+   private IssueManager upstreamIssueManager;
+
+   private IssueManager downstreamIssueManager;
+
+   @Before
+   public void initMocks() {
+      testCandidateReleaseVersion = new ReleaseVersion("1.1.0.CR1");
+
+      testUser = new User().setUsername(TEST_USERNAME)
+         .setEmailAddresses(new String[] {TEST_EMAIL_ADDRESS});
+
+      gitRepository = Mockito.mock(GitRepository.class);
+
+      userResolver = new UserResolver(new User[] {testUser}).setDefaultUser(testUser);
+
+      upstreamIssueManager = Mockito.mock(IssueManager.class);
+
+      downstreamIssueManager = Mockito.mock(IssueManager.class);
+   }
 
    @Test
    public void testCommitNotRequiringReleaseIssue() throws Exception {
@@ -40,25 +68,14 @@ public class CommitProcessorTest {
          .setState("Done");
       downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
 
-      User user = new User().setUsername(TEST_USERNAME)
-         .setEmailAddresses(new String[] {TEST_EMAIL_ADDRESS});
-
-      GitRepository gitRepository = Mockito.mock(GitRepository.class);;
-
-      ReleaseVersion candidateReleaseVersion = new ReleaseVersion("1.1.0.CR1");
-
-      UserResolver userResolver = new UserResolver(new User[] { user }).setDefaultUser(user);
-
-      IssueManager upstreamIssueManager = Mockito.mock(IssueManager.class);
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
 
-      IssueManager downstreamIssueManager = Mockito.mock(IssueManager.class);
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
       Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
       Mockito.when(downstreamIssueManager.getIssueStateDone()).thenReturn("Done");
 
       CommitProcessor commitProcessor = new CommitProcessor(
-         candidateReleaseVersion,
+         testCandidateReleaseVersion,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -76,21 +93,8 @@ public class CommitProcessorTest {
          .setShortMessage(NO_JIRA_KEY + " Test message")
          .setAuthorEmail(TEST_EMAIL_ADDRESS);
 
-      User user = new User().setUsername(TEST_USERNAME)
-         .setEmailAddresses(new String[] {TEST_EMAIL_ADDRESS});
-
-      GitRepository gitRepository = Mockito.mock(GitRepository.class);;
-
-      ReleaseVersion candidateReleaseVersion = new ReleaseVersion("1.1.0.CR1");
-
-      UserResolver userResolver = new UserResolver(new User[] { user }).setDefaultUser(user);
-
-      IssueManager upstreamIssueManager = Mockito.mock(IssueManager.class);
-
-      IssueManager downstreamIssueManager = Mockito.mock(IssueManager.class);
-
       CommitProcessor commitProcessor = new CommitProcessor(
-         candidateReleaseVersion,
+         testCandidateReleaseVersion,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
