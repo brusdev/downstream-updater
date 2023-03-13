@@ -38,6 +38,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,12 +57,6 @@ public class CommitProcessor {
    private final static Pattern downstreamIssuePattern = Pattern.compile("ENTMQBR-[0-9]+");
 
 
-   private static final String UPSTREAM_TEST_COVERAGE_LABEL = "upstream-test-coverage";
-   private static final String NO_TESTING_NEEDED_LABEL = "no-testing-needed";
-   private static final String DOWNSTREAM_ISSUE_REQUIRED_STATE = "Dev Complete";
-   private static final String DOWNSTREAM_ISSUE_BUG_TYPE = "Bug";
-   private static final String DOWNSTREAM_ISSUE_NO_BACKPORT_NEEDED_LABEL = "NO-BACKPORT-NEEDED";
-   private static final String UPSTREAM_ISSUE_BUG_TYPE = "Bug";
 
    private static final String COMMITTER_NAME = "rh-messaging-ci";
    private static final String COMMITTER_EMAIL = "messaging-infra@redhat.com";
@@ -75,7 +70,7 @@ public class CommitProcessor {
    private IssueManager upstreamIssueManager;
    private IssueManager downstreamIssueManager;
    private UserResolver userResolver;
-   private HashMap<String, Map.Entry<GitCommit, ReleaseVersion>> cherryPickedCommits;
+   private Map<String, Map.Entry<GitCommit, ReleaseVersion>> cherryPickedCommits;
    private Map<String, Commit> confirmedCommits;
    private Map<String, Issue> confirmedDownstreamIssues;
    private Map<String, Issue> excludedDownstreamIssues;
@@ -88,36 +83,159 @@ public class CommitProcessor {
    private boolean skipCommitTest;
    private File commitTestsDir;
 
+   public GitRepository getGitRepository() {
+      return gitRepository;
+   }
 
+   public ReleaseVersion getCandidateReleaseVersion() {
+      return candidateReleaseVersion;
+   }
 
-   public CommitProcessor(GitRepository gitRepository, ReleaseVersion candidateReleaseVersion,
-                          IssueManager upstreamIssueManager, IssueManager downstreamIssueManager, UserResolver userResolver,
-                          HashMap<String, Map.Entry<GitCommit, ReleaseVersion>> cherryPickedCommits,
-                          Map<String, Commit> confirmedCommits,
-                          Map<String, Issue> confirmedDownstreamIssues,
-                          Map<String, Issue> excludedDownstreamIssues,
-                          Map<String, Issue> confirmedUpstreamIssues,
-                          Map<String, Issue> excludedUpstreamIssues,
-                          IssueCustomerPriority downstreamIssuesCustomerPriority,
-                          IssueSecurityImpact downstreamIssuesSecurityImpact,
-                          boolean checkIncompleteCommits, boolean dryRun, boolean skipCommitTest, File commitTestsDir) {
-      this.gitRepository = gitRepository;
+   public IssueManager getUpstreamIssueManager() {
+      return upstreamIssueManager;
+   }
+
+   public IssueManager getDownstreamIssueManager() {
+      return downstreamIssueManager;
+   }
+
+   public UserResolver getUserResolver() {
+      return userResolver;
+   }
+
+   public Map<String, Map.Entry<GitCommit, ReleaseVersion>> getCherryPickedCommits() {
+      return cherryPickedCommits;
+   }
+
+   public CommitProcessor setCherryPickedCommits(Map<String, Map.Entry<GitCommit, ReleaseVersion>> cherryPickedCommits) {
+      this.cherryPickedCommits = cherryPickedCommits;
+      return this;
+   }
+
+   public Map<String, Commit> getConfirmedCommits() {
+      return confirmedCommits;
+   }
+
+   public CommitProcessor setConfirmedCommits(Map<String, Commit> confirmedCommits) {
+      this.confirmedCommits = confirmedCommits;
+      return this;
+   }
+
+   public Map<String, Issue> getConfirmedDownstreamIssues() {
+      return confirmedDownstreamIssues;
+   }
+
+   public CommitProcessor setConfirmedDownstreamIssues(Map<String, Issue> confirmedDownstreamIssues) {
+      this.confirmedDownstreamIssues = confirmedDownstreamIssues;
+      return this;
+   }
+
+   public Map<String, Issue> getExcludedDownstreamIssues() {
+      return excludedDownstreamIssues;
+   }
+
+   public CommitProcessor setExcludedDownstreamIssues(Map<String, Issue> excludedDownstreamIssues) {
+      this.excludedDownstreamIssues = excludedDownstreamIssues;
+      return this;
+   }
+
+   public Map<String, Issue> getConfirmedUpstreamIssues() {
+      return confirmedUpstreamIssues;
+   }
+
+   public CommitProcessor setConfirmedUpstreamIssues(Map<String, Issue> confirmedUpstreamIssues) {
+      this.confirmedUpstreamIssues = confirmedUpstreamIssues;
+      return this;
+   }
+
+   public Map<String, Issue> getExcludedUpstreamIssues() {
+      return excludedUpstreamIssues;
+   }
+
+   public CommitProcessor setExcludedUpstreamIssues(Map<String, Issue> excludedUpstreamIssues) {
+      this.excludedUpstreamIssues = excludedUpstreamIssues;
+      return this;
+   }
+
+   public IssueCustomerPriority getDownstreamIssuesCustomerPriority() {
+      return downstreamIssuesCustomerPriority;
+   }
+
+   public CommitProcessor setDownstreamIssuesCustomerPriority(IssueCustomerPriority downstreamIssuesCustomerPriority) {
+      this.downstreamIssuesCustomerPriority = downstreamIssuesCustomerPriority;
+      return this;
+   }
+
+   public IssueSecurityImpact getDownstreamIssuesSecurityImpact() {
+      return downstreamIssuesSecurityImpact;
+   }
+
+   public CommitProcessor setDownstreamIssuesSecurityImpact(IssueSecurityImpact downstreamIssuesSecurityImpact) {
+      this.downstreamIssuesSecurityImpact = downstreamIssuesSecurityImpact;
+      return this;
+   }
+
+   public boolean isCheckIncompleteCommits() {
+      return checkIncompleteCommits;
+   }
+
+   public CommitProcessor setCheckIncompleteCommits(boolean checkIncompleteCommits) {
+      this.checkIncompleteCommits = checkIncompleteCommits;
+      return this;
+   }
+
+   public boolean isDryRun() {
+      return dryRun;
+   }
+
+   public CommitProcessor setDryRun(boolean dryRun) {
+      this.dryRun = dryRun;
+      return this;
+   }
+
+   public boolean isSkipCommitTest() {
+      return skipCommitTest;
+   }
+
+   public CommitProcessor setSkipCommitTest(boolean skipCommitTest) {
+      this.skipCommitTest = skipCommitTest;
+      return this;
+   }
+
+   public File getCommitTestsDir() {
+      return commitTestsDir;
+   }
+
+   public CommitProcessor setCommitTestsDir(File commitTestsDir) {
+      this.commitTestsDir = commitTestsDir;
+      return this;
+   }
+
+   public CommitProcessor(
+      ReleaseVersion candidateReleaseVersion,
+      GitRepository gitRepository,
+      IssueManager upstreamIssueManager,
+      IssueManager downstreamIssueManager,
+      UserResolver userResolver) {
+
       this.candidateReleaseVersion = candidateReleaseVersion;
+      this.gitRepository = gitRepository;
       this.upstreamIssueManager = upstreamIssueManager;
       this.downstreamIssueManager = downstreamIssueManager;
       this.userResolver = userResolver;
-      this.cherryPickedCommits = cherryPickedCommits;
-      this.confirmedCommits = confirmedCommits;
-      this.confirmedDownstreamIssues = confirmedDownstreamIssues;
-      this.excludedDownstreamIssues = excludedDownstreamIssues;
-      this.confirmedUpstreamIssues = confirmedUpstreamIssues;
-      this.excludedUpstreamIssues = excludedUpstreamIssues;
-      this.downstreamIssuesCustomerPriority = downstreamIssuesCustomerPriority;
-      this.downstreamIssuesSecurityImpact = downstreamIssuesSecurityImpact;
-      this.checkIncompleteCommits = checkIncompleteCommits;
-      this.dryRun = dryRun;
-      this.skipCommitTest = skipCommitTest;
-      this.commitTestsDir = commitTestsDir;
+
+      this.cherryPickedCommits = Collections.emptyMap();
+      this.confirmedCommits = Collections.emptyMap();
+      this.confirmedDownstreamIssues = Collections.emptyMap();
+      this.excludedDownstreamIssues = Collections.emptyMap();
+      this.confirmedUpstreamIssues = Collections.emptyMap();
+      this.excludedUpstreamIssues = Collections.emptyMap();
+      this.downstreamIssuesCustomerPriority = IssueCustomerPriority.NONE;
+      this.downstreamIssuesSecurityImpact = IssueSecurityImpact.NONE;
+      this.checkIncompleteCommits = true;
+      this.dryRun = false;
+      this.skipCommitTest = false;
+      this.commitTestsDir = new File("commit-tests");
    }
 
    public Commit process(GitCommit upstreamCommit) throws Exception {
@@ -229,7 +347,10 @@ public class CommitProcessor {
 
       commit.setAssignee(getAssignee(upstreamCommit, upstreamIssue, selectedDownstreamIssues).getUsername());
 
-      boolean requireReleaseIssues = candidateReleaseVersion.getPatch() > 0;
+      // The commits related to downstream issues fixed in another release requires
+      // a downstream release issue if they are cherry-picked to a branch after the first release
+      boolean requireReleaseIssues =  candidateReleaseVersion.getPatch() > 0 ||
+         !isAnyDownstreamIssueDone(allDownstreamIssues);
 
       if (selectedDownstreamIssues != null && selectedDownstreamIssues.size() > 0) {
          // Commit related to downstream issues
@@ -246,6 +367,8 @@ public class CommitProcessor {
                   }
                } else {
                   if (requireReleaseIssues) {
+                     // The commits related to downstream issues fixed in another release requires
+                     // a downstream release issue if they are cherry-picked to a branch after the first release
                      logger.warn("INCOMPLETE because no downstream issues with the required target release");
 
                      if (cloneDownstreamIssues(commit, release, qualifier, selectedDownstreamIssues, confirmedTasks)) {
@@ -282,17 +405,16 @@ public class CommitProcessor {
                   // At least one downstream issue match sufficient criteria to cherry-pick the commit
 
                   if (requireReleaseIssues) {
-                     // The commits related to downstream issues already fixed in a previous release require
-                     // a downstream release issue if cherry-picked to a branch with previous releases
+                     // The commits related to downstream issues fixed in another release requires
+                     // a downstream release issue if they are cherry-picked to a branch after the first release
                      if (cloneDownstreamIssues(commit, release, qualifier, selectedDownstreamIssues, confirmedTasks)) {
                         commit.setState(Commit.State.DONE);
                      } else {
                         commit.setState(Commit.State.NEW).setReason("NO_DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE");
                      }
                   } else {
-                     // The commits related to downstream issues already fixed in a previous release do not require
-                     // a downstream release issue if cherry-picked to a branch without previous releases
-
+                     // The commits related to a downstream issue fixed in another release don't require
+                     // a downstream release issue if they are cherry-picked to a branch before the first release
                      if (processCommitTask(commit, release, qualifier, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT, upstreamCommit.getName(),
                                            selectedDownstreamIssues.stream().map(Issue::getKey).collect(Collectors.joining(",")), confirmedTasks)) {
 
@@ -323,7 +445,7 @@ public class CommitProcessor {
             // Commit not cherry-picked and no downstream issues
 
             if ((confirmedUpstreamIssues != null && confirmedUpstreamIssues.containsKey(upstreamIssue.getKey())) ||
-               (!isUpstreamIssueExcluded(upstreamIssue) && upstreamIssue.getType().equals(UPSTREAM_ISSUE_BUG_TYPE))) {
+               (!isUpstreamIssueExcluded(upstreamIssue) && upstreamIssue.getType().equals(upstreamIssueManager.getIssueTypeBug()))) {
                commit.setState(Commit.State.NEW);
                processCommitTask(commit, release, qualifier, CommitTask.Type.CLONE_UPSTREAM_ISSUE, upstreamIssue.getKey(), null, confirmedTasks);
             } else {
@@ -339,6 +461,16 @@ public class CommitProcessor {
       return currentRelease.equals(release) || FUTURE_GA_RELEASE.equals(release);
    }
 
+   private boolean isAnyDownstreamIssueDone(List<Issue> downstreamIssues) {
+      for (Issue downstreamIssue : downstreamIssues) {
+         if (downstreamIssueManager.getIssueStateDone().equals(downstreamIssue.getState())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    private boolean isCommitRequired(List<Issue> downstreamIssues) {
       for (Issue downstreamIssue : downstreamIssues) {
          if ((confirmedDownstreamIssues != null && confirmedDownstreamIssues.containsKey(downstreamIssue.getKey())) ||
@@ -351,10 +483,10 @@ public class CommitProcessor {
    }
 
    private boolean isCommitRequired(Issue downstreamIssue) {
-      return (downstreamIssue.getType().equals(DOWNSTREAM_ISSUE_BUG_TYPE) &&
-              ((downstreamIssue.isCustomer() && downstreamIssuesCustomerPriority.compareTo(downstreamIssue.getCustomerPriority()) <= 0) ||
-                      (downstreamIssue.isSecurity() && downstreamIssuesSecurityImpact.compareTo(downstreamIssue.getSecurityImpact()) <= 0) ||
-                      (downstreamIssue.isPatch())));
+      return (downstreamIssueManager.getIssueTypeBug().equals(downstreamIssue.getType()) && (
+         (downstreamIssue.isCustomer() && downstreamIssuesCustomerPriority.compareTo(downstreamIssue.getCustomerPriority()) <= 0) ||
+            (downstreamIssue.isSecurity() && downstreamIssuesSecurityImpact.compareTo(downstreamIssue.getSecurityImpact()) <= 0) ||
+            (downstreamIssue.isPatch())));
    }
 
    private boolean isDownstreamIssueExcluded(Issue downstreamIssue) {
@@ -375,7 +507,7 @@ public class CommitProcessor {
             targetReleaseVersion = null;
          }
 
-         if (targetReleaseVersion != null && downstreamIssue.getLabels().contains(DOWNSTREAM_ISSUE_NO_BACKPORT_NEEDED_LABEL) &&
+         if (targetReleaseVersion != null && downstreamIssue.getLabels().contains(downstreamIssueManager.getIssueLabelNoBackportNeeded()) &&
             targetReleaseVersion.getMajor() == candidateReleaseVersion.getMajor() &&
             targetReleaseVersion.getMinor() == candidateReleaseVersion.getMinor()) {
             return true;
@@ -421,17 +553,17 @@ public class CommitProcessor {
          }
 
          //Check if the downstream issue has the upstream-test-coverage label
-         if (commit.getTests().size() > 0 && !downstreamIssue.getLabels().contains(UPSTREAM_TEST_COVERAGE_LABEL) &&
-            !downstreamIssue.getLabels().contains(NO_TESTING_NEEDED_LABEL)){
+         if (commit.getTests().size() > 0 && !downstreamIssue.getLabels().contains(downstreamIssueManager.getIssueLabelUpstreamTestCoverage()) &&
+            !downstreamIssue.getLabels().contains(downstreamIssueManager.getIssueLabelNoTestingNeeded())){
             if (checkIncompleteCommits) {
-               executed &= processCommitTask(commit, release, qualifier, CommitTask.Type.ADD_DOWNSTREAM_ISSUE_LABEL, downstreamIssue.getKey(), UPSTREAM_TEST_COVERAGE_LABEL, confirmedTasks);
+               executed &= processCommitTask(commit, release, qualifier, CommitTask.Type.ADD_DOWNSTREAM_ISSUE_LABEL, downstreamIssue.getKey(), downstreamIssueManager.getIssueLabelUpstreamTestCoverage(), confirmedTasks);
             }
          }
 
          //Check if the downstream issue has the right state
-         if (downstreamIssueManager.getIssueStateMachine().getStateIndex(downstreamIssue.getState()) < downstreamIssueManager.getIssueStateMachine().getStateIndex(DOWNSTREAM_ISSUE_REQUIRED_STATE)) {
+         if (downstreamIssueManager.getIssueStateMachine().getStateIndex(downstreamIssue.getState()) < downstreamIssueManager.getIssueStateMachine().getStateIndex(downstreamIssueManager.getIssueStateDevComplete())) {
             if (checkIncompleteCommits) {
-               executed &= processCommitTask(commit, release, qualifier, CommitTask.Type.TRANSITION_DOWNSTREAM_ISSUE, downstreamIssue.getKey(), DOWNSTREAM_ISSUE_REQUIRED_STATE, confirmedTasks);
+               executed &= processCommitTask(commit, release, qualifier, CommitTask.Type.TRANSITION_DOWNSTREAM_ISSUE, downstreamIssue.getKey(), downstreamIssueManager.getIssueStateDevComplete(), confirmedTasks);
             }
          }
       }
@@ -648,22 +780,22 @@ public class CommitProcessor {
          Issue upstreamIssue = upstreamIssueManager.getIssue(key);
          List<String> labels = new ArrayList<>();
          labels.add(qualifier);
-         if (commit.getTests().size() > 0) {
-            labels.add(UPSTREAM_TEST_COVERAGE_LABEL);
-         }
 
          User assignee = userResolver.getUserFromUsername(commit.getAssignee());
 
          Issue downstreamIssue;
          if (dryRun) {
-            downstreamIssue = new Issue().setKey(key + "-DRY-RUN-CLONE").setSummary(upstreamIssue.getSummary())
-               .setDescription(upstreamIssue.getDescription()).setType(DOWNSTREAM_ISSUE_BUG_TYPE)
-               .setAssignee(assignee.getDownstreamUsername()).setTargetRelease(release);
+            downstreamIssue = new Issue().setKey(key + "-DRY-RUN-CLONE")
+               .setSummary(upstreamIssue.getSummary())
+               .setDescription(upstreamIssue.getDescription())
+               .setType(downstreamIssueManager.getIssueTypeBug())
+               .setAssignee(assignee.getDownstreamUsername())
+               .setTargetRelease(release);
             downstreamIssue.getLabels().addAll(labels);
             downstreamIssue.getIssues().add(upstreamIssue.getKey());
          } else {
             downstreamIssue = downstreamIssueManager.createIssue(
-               upstreamIssue.getSummary(), upstreamIssue.getDescription(), DOWNSTREAM_ISSUE_BUG_TYPE,
+               upstreamIssue.getSummary(), upstreamIssue.getDescription(), downstreamIssueManager.getIssueTypeBug(),
                assignee.getDownstreamUsername(), upstreamIssue.getKey(), release, labels);
 
             upstreamIssue.getIssues().add(downstreamIssue.getKey());

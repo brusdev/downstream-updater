@@ -62,6 +62,15 @@ public class JiraIssueManager implements IssueManager {
    //"id":"customfield_12314640","name":"Upstream Jira"
    private final static String UPSTREAM_ISSUE_FIELD = "customfield_12314640";
 
+   private final static String ISSUE_TYPE_BUG = "Bug";
+
+   private static final String ISSUE_STATE_DONE = "Done";
+   private static final String ISSUE_STATE_DEV_COMPLETE = "Dev Complete";
+
+   private static final String ISSUE_LABEL_NO_BACKPORT_NEEDED = "NO-BACKPORT-NEEDED";
+   private static final String ISSUE_LABEL_NO_TESTING_NEEDED = "no-testing-needed";
+   private static final String ISSUE_LABEL_UPSTREAM_TEST_COVERAGE = "upstream-test-coverage";
+
    private final static Pattern upstreamIssuePattern = Pattern.compile("ARTEMIS-[0-9]+");
    private final static Pattern securityImpactPattern = Pattern.compile("Impact: (Critical|Important|Moderate|Low)");
 
@@ -97,6 +106,36 @@ public class JiraIssueManager implements IssueManager {
    @Override
    public Collection<Issue> getIssues() {
       return issues.values();
+   }
+
+   @Override
+   public String getIssueTypeBug() {
+      return ISSUE_TYPE_BUG;
+   }
+
+   @Override
+   public String getIssueStateDone() {
+      return ISSUE_STATE_DONE;
+   }
+
+   @Override
+   public String getIssueStateDevComplete() {
+      return ISSUE_STATE_DEV_COMPLETE;
+   }
+
+   @Override
+   public String getIssueLabelNoBackportNeeded() {
+      return ISSUE_LABEL_NO_BACKPORT_NEEDED;
+   }
+
+   @Override
+   public String getIssueLabelNoTestingNeeded() {
+      return ISSUE_LABEL_NO_TESTING_NEEDED;
+   }
+
+   @Override
+   public String getIssueLabelUpstreamTestCoverage() {
+      return ISSUE_LABEL_UPSTREAM_TEST_COVERAGE;
    }
 
    @Override

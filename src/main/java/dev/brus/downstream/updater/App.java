@@ -407,10 +407,24 @@ public class App {
 
       // Init commit parser
       CommitProcessor commitProcessor = new CommitProcessor(
-         gitRepository, candidateReleaseVersion, upstreamIssueManager, downstreamIssueManager, userResolver,
-         cherryPickedCommits, confirmedCommits, confirmedDownstreamIssues, excludedDownstreamIssues, confirmedUpstreamIssues, excludedUpstreamIssues,
-         downstreamIssuesCustomerPriority, downstreamIssuesSecurityImpact, checkIncompleteCommits, dryRun, skipCommitTest, commitTestsDir);
+         candidateReleaseVersion,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
 
+      commitProcessor.setCherryPickedCommits(cherryPickedCommits);
+      commitProcessor.setConfirmedCommits(confirmedCommits);
+      commitProcessor.setConfirmedDownstreamIssues(confirmedDownstreamIssues);
+      commitProcessor.setExcludedDownstreamIssues(excludedDownstreamIssues);
+      commitProcessor.setConfirmedUpstreamIssues(confirmedUpstreamIssues);
+      commitProcessor.setExcludedUpstreamIssues(excludedUpstreamIssues);
+      commitProcessor.setDownstreamIssuesCustomerPriority(downstreamIssuesCustomerPriority);
+      commitProcessor.setDownstreamIssuesSecurityImpact(downstreamIssuesSecurityImpact);
+      commitProcessor.setCheckIncompleteCommits(checkIncompleteCommits);
+      commitProcessor.setDryRun(dryRun);
+      commitProcessor.setSkipCommitTest(skipCommitTest);
+      commitProcessor.setCommitTestsDir(commitTestsDir);
 
       //Delete current commits file
       File commitsFile = new File(targetDir, "commits.json");
@@ -431,12 +445,15 @@ public class App {
          }
       } finally {
          // Store commits
+         // Ignore SKIPPED commits and DONE commits without EXECUTED tasks
+         /*
          FileUtils.writeStringToFile(commitsFile, gson.toJson(commits.stream()
             .filter(commit -> (commit.getState() != Commit.State.SKIPPED && commit.getState() != Commit.State.DONE) ||
                (commit.getState() == Commit.State.DONE && commit.getTasks().stream()
                   .anyMatch(commitTask -> CommitTask.State.EXECUTED.equals(commitTask.getState()))))
             .collect(Collectors.toList())), Charset.defaultCharset());
-         //FileUtils.writeStringToFile(commitsFile, gson.toJson(commits), Charset.defaultCharset());
+          */
+         FileUtils.writeStringToFile(commitsFile, gson.toJson(commits), Charset.defaultCharset());
 
          // Store upstream issues
          upstreamIssueManager.storeIssues(upstreamIssuesFile);

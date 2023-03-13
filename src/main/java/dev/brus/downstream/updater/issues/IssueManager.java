@@ -33,6 +33,15 @@ public interface IssueManager {
 
    Collection<Issue> getIssues();
 
+   String getIssueTypeBug();
+
+   String getIssueStateDone();
+   String getIssueStateDevComplete();
+
+   String getIssueLabelNoBackportNeeded();
+   String getIssueLabelNoTestingNeeded();
+   String getIssueLabelUpstreamTestCoverage();
+
    void storeIssues(File file) throws Exception;
 
    void addIssueLabels(String issueKey, String... labels) throws Exception;
