@@ -76,6 +76,7 @@ public class CommitProcessor {
    private Map<String, Issue> excludedDownstreamIssues;
    private Map<String, Issue> confirmedUpstreamIssues;
    private Map<String, Issue> excludedUpstreamIssues;
+   private Map<String, List<String>> upstreamRevertingChains;
    private IssueCustomerPriority downstreamIssuesCustomerPriority;
    private IssueSecurityImpact downstreamIssuesSecurityImpact;
    private boolean checkIncompleteCommits;
@@ -161,6 +162,15 @@ public class CommitProcessor {
       return downstreamIssuesCustomerPriority;
    }
 
+   public Map<String, List<String>> getUpstreamRevertingChains() {
+      return upstreamRevertingChains;
+   }
+
+   public CommitProcessor setUpstreamRevertingChains(Map<String, List<String>> upstreamRevertingChains) {
+      this.upstreamRevertingChains = upstreamRevertingChains;
+      return this;
+   }
+
    public CommitProcessor setDownstreamIssuesCustomerPriority(IssueCustomerPriority downstreamIssuesCustomerPriority) {
       this.downstreamIssuesCustomerPriority = downstreamIssuesCustomerPriority;
       return this;
@@ -230,6 +240,7 @@ public class CommitProcessor {
       this.excludedDownstreamIssues = Collections.emptyMap();
       this.confirmedUpstreamIssues = Collections.emptyMap();
       this.excludedUpstreamIssues = Collections.emptyMap();
+      this.upstreamRevertingChains = Collections.emptyMap();
       this.downstreamIssuesCustomerPriority = IssueCustomerPriority.NONE;
       this.downstreamIssuesSecurityImpact = IssueSecurityImpact.NONE;
       this.checkIncompleteCommits = true;
@@ -265,15 +276,31 @@ public class CommitProcessor {
          setAssignee(userResolver.getDefaultUser().getUsername()).
          setState(Commit.State.DONE);
 
+      List<String> upstreamRevertingChain = upstreamRevertingChains.get(upstreamCommit.getName());
+
       Matcher upstreamIssueMatcher = upstreamIssuePattern.matcher(upstreamCommit.getShortMessage());
 
       String upstreamIssueKey = null;
       if (upstreamIssueMatcher.find()) {
          upstreamIssueKey = upstreamIssueMatcher.group();
       } else if (cherryPickedCommit == null) {
-         logger.info("SKIPPED because the commit message does not include an upstream issue key");
-         commit.setState(Commit.State.SKIPPED).setReason("NO_UPSTREAM_ISSUE");
-         return commit;
+         if (upstreamRevertingChain != null) {
+            for(String upstreamRevertingChainItem : upstreamRevertingChain) {
+               GitCommit upstreamRevertingChainCommit = gitRepository.resolveCommit(upstreamRevertingChainItem);
+               Matcher upstreamRevertingIssueMatcher = upstreamIssuePattern.matcher(upstreamRevertingChainCommit.getShortMessage());
+
+               if (upstreamRevertingIssueMatcher.find()) {
+                  upstreamIssueKey = upstreamRevertingIssueMatcher.group();
+                  break;
+               }
+            }
+         }
+
+         if (upstreamIssueKey == null) {
+            logger.info("SKIPPED because the commit message does not include an upstream issue key");
+            commit.setState(Commit.State.SKIPPED).setReason("NO_UPSTREAM_ISSUE");
+            return commit;
+         }
       }
 
       Issue upstreamIssue = null;
@@ -293,6 +320,18 @@ public class CommitProcessor {
             commit.setState(Commit.State.INVALID).setReason("UPSTREAM_ISSUE_NOT_FOUND");
             return commit;
          }
+      }
+
+      //Skip commits of reverting chains only if they are even and none is cherry-picked
+      if (cherryPickedCommit == null && upstreamRevertingChain != null && upstreamRevertingChain.size() % 2 == 0
+         && !upstreamRevertingChain.stream().anyMatch(revertingCommit -> cherryPickedCommits.containsKey(revertingCommit))) {
+         logger.warn("SKIPPED because the commits of the revering chain are even and none is cherry-picked: " + upstreamCommit.getName());
+         if (upstreamRevertingChain.indexOf(upstreamCommit.getName()) == 0) {
+            commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_REVERTING_COMMIT");
+         } else {
+            commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_REVERTED_COMMIT");
+         }
+         return commit;
       }
 
 

@@ -35,8 +35,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -275,7 +277,7 @@ public class App {
 
       // Load upstream commits
       Deque<GitCommit> upstreamCommits = new ArrayDeque<>();
-      HashMap<String, GitCommit> upstreamRevertingCommits = new HashMap<>();
+      Queue<Map.Entry<GitCommit, String>> upstreamRevertingCommits = new LinkedList<>();
       for (GitCommit commit : gitRepository.log("upstream/" + upstreamBranch, "origin/" + downstreamBranch)) {
          if (!commit.getShortMessage().startsWith("Merge pull request")) {
             upstreamCommits.push(commit);
@@ -283,17 +285,31 @@ public class App {
             Matcher revertedCommitMatcher = revertedCommitPattern.matcher(commit.getFullMessage());
 
             if (revertedCommitMatcher.find()) {
-               logger.info("upstream reverting commit: " + revertedCommitMatcher.group(1));
-               upstreamRevertingCommits.put(revertedCommitMatcher.group(1), commit);
+               String revertedCommitName = revertedCommitMatcher.group(1);
+               logger.info("upstream reverting commit: " + revertedCommitName);
+               upstreamRevertingCommits.add(new AbstractMap.SimpleEntry<>(commit, revertedCommitMatcher.group(1)));
+            }
+         }
+      }
+
+
+      //Load upstream reverting chains
+      Map<String, List<String>> upstreamRevertingChains = new HashMap<>();
+      for (Map.Entry<GitCommit, String> upstreamRevertingCommitEntry : upstreamRevertingCommits) {
+         if (!upstreamRevertingChains.containsKey(upstreamRevertingCommitEntry.getKey().getName())) {
+            List<String> upstreamRevertingChain = new ArrayList();
+            loadRevertingChain(upstreamRevertingCommitEntry, 0, upstreamRevertingCommits, upstreamRevertingChain);
+            for(String upstreamRevertingChainItem : upstreamRevertingChain) {
+               upstreamRevertingChains.put(upstreamRevertingChainItem, upstreamRevertingChain);
             }
          }
       }
 
 
       // Load cherry-picked commits
-      HashMap<String, GitCommit> downstreamRevertedCommits = new HashMap<>();
+      Map<String, GitCommit> downstreamRevertedCommits = new HashMap<>();
       Deque<Map.Entry<GitCommit, ReleaseVersion>> downstreamCommits = new ArrayDeque<>();
-      HashMap<String, Map.Entry<GitCommit, ReleaseVersion>> cherryPickedCommits = new HashMap<>();
+      Map<String, Map.Entry<GitCommit, ReleaseVersion>> cherryPickedCommits = new HashMap<>();
       ReleaseVersion cherryPickedReleaseVersion = candidateReleaseVersion;
       for (GitCommit commit : gitRepository.log("origin/" + downstreamBranch, "upstream/" + upstreamBranch)) {
 
@@ -355,21 +371,6 @@ public class App {
          }
       }
 
-
-      //Skip upstream reverted commits not cherry-picked
-      for (Map.Entry<String, GitCommit> upstreamRevertingCommitEntry : upstreamRevertingCommits.entrySet()) {
-
-         GitCommit upstreamRevertedCommit = upstreamCommits.stream().filter(
-            upstreamCommit -> upstreamCommit.getName().equals(upstreamRevertingCommitEntry.getKey())).findAny().orElse(null);
-
-         if (upstreamRevertedCommit != null && !cherryPickedCommits.containsKey(upstreamRevertingCommitEntry.getKey())) {
-            logger.info("upstream reverted commit: " + upstreamRevertedCommit.getName() + " - " + upstreamRevertedCommit.getShortMessage());
-            upstreamCommits.remove(upstreamRevertedCommit);
-            upstreamCommits.remove(upstreamRevertingCommitEntry.getValue());
-         }
-      }
-
-
       // Load confirmed commits
       Map<String, Commit> confirmedCommits = new HashMap<>();
       if (confirmedCommitsFilename != null) {
@@ -419,6 +420,7 @@ public class App {
       commitProcessor.setExcludedDownstreamIssues(excludedDownstreamIssues);
       commitProcessor.setConfirmedUpstreamIssues(confirmedUpstreamIssues);
       commitProcessor.setExcludedUpstreamIssues(excludedUpstreamIssues);
+      commitProcessor.setUpstreamRevertingChains(upstreamRevertingChains);
       commitProcessor.setDownstreamIssuesCustomerPriority(downstreamIssuesCustomerPriority);
       commitProcessor.setDownstreamIssuesSecurityImpact(downstreamIssuesSecurityImpact);
       commitProcessor.setCheckIncompleteCommits(checkIncompleteCommits);
@@ -506,5 +508,17 @@ public class App {
       option.setOptionalArg(hasOptionalArg);
 
       return option;
+   }
+
+   private static void loadRevertingChain(Map.Entry<GitCommit, String> revertingCommitEntry, int revertingChainCount, Queue<Map.Entry<GitCommit, String>> revertingCommits, List<String> revertingChain) {
+      revertingChain.add(revertingCommitEntry.getKey().getName());
+
+      Map.Entry<GitCommit, String> recursiveRevertingCommitEntry = revertingCommits.stream().filter(gitCommitStringEntry -> gitCommitStringEntry.getKey().getName().equals(revertingCommitEntry.getValue())).findFirst().orElse(null);
+
+      if (recursiveRevertingCommitEntry != null) {
+         loadRevertingChain(recursiveRevertingCommitEntry, revertingChainCount + 1, revertingCommits, revertingChain);
+      } else {
+         revertingChain.add(revertingCommitEntry.getValue());
+      }
    }
 }
