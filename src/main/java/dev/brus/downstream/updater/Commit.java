@@ -58,9 +58,13 @@ public class Commit {
    private String assignee;
    private Commit.State state;
    private String upstreamIssue;
+   private String upstreamIssueUrl;
    private List<String> downstreamIssues;
+   private String downstreamIssuesBaseUrl;
    private String upstreamCommit;
+   private String upstreamCommitUrl;
    private String downstreamCommit;
+   private String downstreamCommitUrl;
    private String author;
    private String summary;
    private String reason;
@@ -173,6 +177,42 @@ public class Commit {
 
    public Commit setRelease(String release) {
       this.release = release;
+      return this;
+   }
+
+   public String getUpstreamIssueUrl() {
+      return upstreamIssueUrl;
+   }
+
+   public Commit setUpstreamIssueUrl(String upstreamIssueUrl) {
+      this.upstreamIssueUrl = upstreamIssueUrl;
+      return this;
+   }
+
+   public String getDownstreamIssuesBaseUrl() {
+      return downstreamIssuesBaseUrl;
+   }
+
+   public Commit setDownstreamIssuesBaseUrl(String downstreamIssuesBaseUrl) {
+      this.downstreamIssuesBaseUrl = downstreamIssuesBaseUrl;
+      return this;
+   }
+
+   public String getUpstreamCommitUrl() {
+      return upstreamCommitUrl;
+   }
+
+   public Commit setUpstreamCommitUrl(String upstreamCommitUrl) {
+      this.upstreamCommitUrl = upstreamCommitUrl;
+      return this;
+   }
+
+   public String getDownstreamCommitUrl() {
+      return downstreamCommitUrl;
+   }
+
+   public Commit setDownstreamCommitUrl(String downstreamCommitUrl) {
+      this.downstreamCommitUrl = downstreamCommitUrl;
       return this;
    }
 }

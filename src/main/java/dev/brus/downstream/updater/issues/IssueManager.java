@@ -23,11 +23,17 @@ import java.util.List;
 
 public interface IssueManager {
 
-   IssueStateMachine getIssueStateMachine();
+   String getServerURL();
 
-   void loadIssues(boolean parseCustomFields) throws Exception;
+   String getAuthString();
 
-   void loadIssues(boolean parseCustomFields, File file) throws Exception;
+   String getProjectKey();
+
+   String getIssueBaseUrl();
+
+   void loadIssues() throws Exception;
+
+   void loadIssues(File file) throws Exception;
 
    Issue getIssue(String key);
 
@@ -36,23 +42,8 @@ public interface IssueManager {
    String getIssueTypeBug();
 
    String getIssueStateDone();
-   String getIssueStateDevComplete();
-
-   String getIssueLabelNoBackportNeeded();
-   String getIssueLabelNoTestingNeeded();
-   String getIssueLabelUpstreamTestCoverage();
 
    void storeIssues(File file) throws Exception;
 
-   void addIssueLabels(String issueKey, String... labels) throws Exception;
-
-   void addIssueUpstreamIssues(String issueKey, String... upstreamIssues) throws Exception;
-
-   void setIssueTargetRelease(String issueKey, String targetRelease) throws Exception;
-
-   void transitionIssue(String issueKey, String finalStatus) throws Exception;
-
-   Issue createIssue(String summary, String description, String type, String assignee, String upstreamIssue, String targetRelease, List<String> labels) throws Exception;
-
-   void linkIssue(String issueKey, String cloningIssueKey, String linkType) throws Exception;
+   List<String> parseIssueKeys(String s);
 }

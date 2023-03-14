@@ -22,12 +22,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ReleaseVersion implements Comparable<ReleaseVersion> {
-   private final static Pattern versionPattern = Pattern.compile("([0-9]+)\\.([0-9]+)\\.([0-9]+).([0-9A-Za-z]+)");
+   private final static Pattern versionPattern = Pattern.compile("([0-9]+)\\.([0-9]+)\\.([0-9]+)(\\.(.*))*\\.(CR[0-9]+|GA)");
 
    private int major;
    private int minor;
    private int patch;
    private String qualifier;
+   private String candidate;
 
    public int getMajor() {
       return major;
@@ -45,6 +46,10 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
       return qualifier;
    }
 
+   public String getCandidate() {
+      return candidate;
+   }
+
    public ReleaseVersion(String release) {
       Matcher releaseVersionMatcher = versionPattern.matcher(release);
       if (!releaseVersionMatcher.find()) {
@@ -54,7 +59,8 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
       major = Integer.parseInt(releaseVersionMatcher.group(1));
       minor = Integer.parseInt(releaseVersionMatcher.group(2));
       patch = Integer.parseInt(releaseVersionMatcher.group(3));
-      qualifier = releaseVersionMatcher.group(4);
+      qualifier = releaseVersionMatcher.group(5);
+      candidate = releaseVersionMatcher.group(6);
    }
 
    public static int compare(String releaseX, String releaseY) {
@@ -72,21 +78,6 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
       }
    }
 
-   public static int compareWithoutQualifier(String releaseX, String releaseY) {
-      if (Objects.equals(releaseX, releaseY)) {
-         return 0;
-      } else if (releaseX == null || releaseX.isEmpty()) {
-         return -1;
-      } else if (releaseY == null || releaseY.isEmpty()) {
-         return 1;
-      } else {
-         ReleaseVersion releaseVersionX = new ReleaseVersion(releaseX);
-         ReleaseVersion releaseVersionY = new ReleaseVersion(releaseY);
-
-         return releaseVersionX.compareWithoutQualifierTo(releaseVersionY);
-      }
-   }
-
    @Override
    public String toString() {
       return major + "." + minor + "." + patch + "." + qualifier;
@@ -97,26 +88,30 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
       if (this.getMajor() == releaseVersion.getMajor() &&
          this.getMinor() == releaseVersion.getMinor() &&
          this.getPatch() == releaseVersion.getPatch() &&
-         this.getQualifier().compareTo(releaseVersion.getQualifier()) == 0) {
+         this.getQualifier().compareTo(releaseVersion.getQualifier()) == 0 &&
+         this.getCandidate().compareTo(releaseVersion.getCandidate()) == 0) {
          return 0;
       } else if (this.getMajor() > releaseVersion.getMajor() ||
          this.getMajor() == releaseVersion.getMajor() && this.getMinor() > releaseVersion.getMinor() ||
          this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() > releaseVersion.getPatch() ||
-         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() == releaseVersion.getPatch() && this.getQualifier().compareTo(releaseVersion.getQualifier()) > 0) {
+         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() == releaseVersion.getPatch() && this.getQualifier().compareTo(releaseVersion.getQualifier()) > 0 ||
+         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() == releaseVersion.getPatch() && this.getQualifier().compareTo(releaseVersion.getQualifier()) == 0 && this.getCandidate().compareTo(releaseVersion.getCandidate()) > 0) {
          return 1;
       } else {
          return -1;
       }
    }
 
-   public int compareWithoutQualifierTo(ReleaseVersion releaseVersion) {
+   public int compareWithoutCandidateTo(ReleaseVersion releaseVersion) {
       if (this.getMajor() == releaseVersion.getMajor() &&
          this.getMinor() == releaseVersion.getMinor() &&
-         this.getPatch() == releaseVersion.getPatch()) {
+         this.getPatch() == releaseVersion.getPatch() &&
+         this.getQualifier() == releaseVersion.getQualifier()) {
          return 0;
       } else if (this.getMajor() > releaseVersion.getMajor() ||
          this.getMajor() == releaseVersion.getMajor() && this.getMinor() > releaseVersion.getMinor() ||
-         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() > releaseVersion.getPatch()) {
+         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() > releaseVersion.getPatch() ||
+         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() == releaseVersion.getPatch() && this.getQualifier().compareTo(releaseVersion.getQualifier()) > 0) {
          return 1;
       } else {
          return -1;

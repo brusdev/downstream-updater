@@ -32,6 +32,8 @@ public interface GitRepository {
 
    void remoteAdd(String name, String uri) throws Exception;
 
+   String remoteGet(String name) throws Exception;
+
    boolean branchExists(String name) throws Exception;
 
    void branchCreate(String name, String startPoint) throws Exception;

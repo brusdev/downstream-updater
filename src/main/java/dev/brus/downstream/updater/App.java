@@ -5,13 +5,12 @@ import com.google.gson.GsonBuilder;
 import dev.brus.downstream.updater.git.GitCommit;
 import dev.brus.downstream.updater.git.GitRepository;
 import dev.brus.downstream.updater.git.JGitRepository;
-import dev.brus.downstream.updater.issues.ApacheIssueStateMachine;
+import dev.brus.downstream.updater.issues.DownstreamIssueManager;
 import dev.brus.downstream.updater.issues.Issue;
 import dev.brus.downstream.updater.issues.IssueCustomerPriority;
 import dev.brus.downstream.updater.issues.IssueManager;
+import dev.brus.downstream.updater.issues.IssueManagerFactory;
 import dev.brus.downstream.updater.issues.IssueSecurityImpact;
-import dev.brus.downstream.updater.issues.JiraIssueManager;
-import dev.brus.downstream.updater.issues.RedHatIssueStateMachine;
 import dev.brus.downstream.updater.users.User;
 import dev.brus.downstream.updater.users.UserResolver;
 import org.apache.commons.cli.CommandLine;
@@ -23,6 +22,7 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,17 +53,23 @@ public class App {
    private final static Pattern revertedCommitPattern = Pattern.compile("This reverts commit ([0-9a-f]{40})");
    private final static Pattern prepareReleaseCommitPattern = Pattern.compile("Prepare release ([0-9]+\\.[0-9]+\\.[0-9]+.CR[0-9]+)");
 
+   private static final String COMMITS_OPTION = "commits";
    private static final String CONFIRMED_COMMITS_OPTION = "confirmed-commits";
+   private static final String PAYLOAD_OPTION = "payload";
    private static final String CONFIRMED_UPSTREAM_ISSUES_OPTION = "confirmed-upstream-issues";
    private static final String EXCLUDED_UPSTREAM_ISSUES_OPTION = "excluded-upstream-issues";
    private static final String CONFIRMED_DOWNSTREAM_ISSUES_OPTION = "confirmed-downstream-issues";
    private static final String EXCLUDED_DOWNSTREAM_ISSUES_OPTION = "excluded-downstream-issues";
    private static final String UPSTREAM_REPOSITORY_OPTION = "upstream-repository";
    private static final String UPSTREAM_BRANCH_OPTION = "upstream-branch";
+   private static final String UPSTREAM_ISSUES_SERVER_URL_OPTION = "upstream-issues-server-url";
    private static final String UPSTREAM_ISSUES_AUTH_STRING_OPTION = "upstream-issues-auth-string";
+   private static final String UPSTREAM_ISSUES_PROJECT_KEY_OPTION = "upstream-issues-project-key";
    private static final String DOWNSTREAM_REPOSITORY_OPTION = "downstream-repository";
    private static final String DOWNSTREAM_BRANCH_OPTION = "downstream-branch";
+   private static final String DOWNSTREAM_ISSUES_SERVER_URL_OPTION = "downstream-issues-server-url";
    private static final String DOWNSTREAM_ISSUES_AUTH_STRING_OPTION = "downstream-issues-auth-string";
+   private static final String DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION = "downstream-issues-project-key";
    private static final String DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY = "downstream-issues-customer-priority";
    private static final String DOWNSTREAM_ISSUES_SECURITY_IMPACT = "downstream-issues-security-impact";
    private static final String RELEASE_OPTION = "release";
@@ -83,14 +89,20 @@ public class App {
       options.addOption(createOption(null, DOWNSTREAM_REPOSITORY_OPTION, true, true, false, "the downstream repository to cherry-pick to, i.e. https://github.com/rh-messaging/activemq-artemis.git"));
       options.addOption(createOption(null, DOWNSTREAM_BRANCH_OPTION, true, true, false, "the downstream branch to cherry-pick to, i.e. 2.16.0.jbossorg-x"));
 
+      options.addOption(createOption(null, COMMITS_OPTION, false, true, false, "the commits"));
       options.addOption(createOption(null, CONFIRMED_COMMITS_OPTION, false, true, false, "the confirmed commits"));
+      options.addOption(createOption(null, PAYLOAD_OPTION, false, true, false, "the commits"));
       options.addOption(createOption(null, CONFIRMED_DOWNSTREAM_ISSUES_OPTION, false, true, true, "the confirmed downstream issues, commits related to other downstream issues with a different target release will be skipped"));
       options.addOption(createOption(null, EXCLUDED_DOWNSTREAM_ISSUES_OPTION, false, true, true, "the excluded downstream issues, commits related to other downstream issues with a different target release will be skipped"));
       options.addOption(createOption(null, CONFIRMED_UPSTREAM_ISSUES_OPTION, false, true, true, "the confirmed upstream issues, commits related to other upstream issues without a downstream issue will be skipped"));
       options.addOption(createOption(null, EXCLUDED_UPSTREAM_ISSUES_OPTION, false, true, true, "the excluded upstream issues, commits related to other upstream issues without a downstream issue will be skipped"));
 
+      options.addOption(createOption(null, UPSTREAM_ISSUES_SERVER_URL_OPTION, false, true, false, "the server URL to access upstream issues, i.e. https://issues.apache.org/jira/rest/api/2"));
       options.addOption(createOption(null, UPSTREAM_ISSUES_AUTH_STRING_OPTION, false, true, false, "the auth string to access upstream issues, i.e. \"Bearer ...\""));
+      options.addOption(createOption(null, UPSTREAM_ISSUES_PROJECT_KEY_OPTION, false, true, false, "the project key to access upstream issues, i.e. ARTEMIS"));
+      options.addOption(createOption(null, DOWNSTREAM_ISSUES_SERVER_URL_OPTION, false, true, false, "the server URL to access downstream issues, i.e. https://issues.redhat.com/rest/api/2"));
       options.addOption(createOption(null, DOWNSTREAM_ISSUES_AUTH_STRING_OPTION, false, true, false, "the auth string to access downstream issues, i.e. \"Bearer ...\""));
+      options.addOption(createOption(null, DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION, false, true, false, "the project key to access downstream issues, i.e. ENTMQBR"));
       options.addOption(createOption(null, DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY, false, true, false, "the customer priority to filter downstream issues, i.e. HIGH"));
       options.addOption(createOption(null, DOWNSTREAM_ISSUES_SECURITY_IMPACT, false, true, false, "the security impact to filter downstream issues, i.e. IMPORTANT"));
 
@@ -118,25 +130,39 @@ public class App {
       String downstreamRepository = line.getOptionValue(DOWNSTREAM_REPOSITORY_OPTION);
       String downstreamBranch = line.getOptionValue(DOWNSTREAM_BRANCH_OPTION);
 
+      String downstreamIssuesServerURL = line.getOptionValue(DOWNSTREAM_ISSUES_SERVER_URL_OPTION);
       String downstreamIssuesAuthString = line.getOptionValue(DOWNSTREAM_ISSUES_AUTH_STRING_OPTION);
+      String downstreamIssuesProjectKey = line.getOptionValue(DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION);
 
-      IssueCustomerPriority downstreamIssuesCustomerPriority = IssueCustomerPriority.LOW;
+      IssueCustomerPriority downstreamIssuesCustomerPriority = IssueCustomerPriority.NONE;
       if (line.hasOption(DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY)) {
          downstreamIssuesCustomerPriority = IssueCustomerPriority.fromName(
             line.getOptionValue(DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY));
       }
 
-      IssueSecurityImpact downstreamIssuesSecurityImpact = IssueSecurityImpact.LOW;
+      IssueSecurityImpact downstreamIssuesSecurityImpact = IssueSecurityImpact.NONE;
       if (line.hasOption(DOWNSTREAM_ISSUES_SECURITY_IMPACT)) {
          downstreamIssuesSecurityImpact = IssueSecurityImpact.fromName(
             line.getOptionValue(DOWNSTREAM_ISSUES_SECURITY_IMPACT));
       }
 
+      String upstreamIssuesServerURL = line.getOptionValue(UPSTREAM_ISSUES_SERVER_URL_OPTION);
       String upstreamIssuesAuthString = line.getOptionValue(UPSTREAM_ISSUES_AUTH_STRING_OPTION);
+      String upstreamIssuesProjectKey = line.getOptionValue(UPSTREAM_ISSUES_PROJECT_KEY_OPTION);
+
+      String commitsFilename = null;
+      if (line.hasOption(COMMITS_OPTION)) {
+         commitsFilename = line.getOptionValue(COMMITS_OPTION);
+      }
 
       String confirmedCommitsFilename = null;
       if (line.hasOption(CONFIRMED_COMMITS_OPTION)) {
          confirmedCommitsFilename = line.getOptionValue(CONFIRMED_COMMITS_OPTION);
+      }
+
+      String payloadFilename = null;
+      if (line.hasOption(PAYLOAD_OPTION)) {
+         payloadFilename = line.getOptionValue(PAYLOAD_OPTION);
       }
 
       String confirmedDownstreamIssueKeys = null;
@@ -182,7 +208,8 @@ public class App {
 
       // Initialize git
       GitRepository gitRepository = new JGitRepository();
-      File repoDir = new File(targetDir, "activemq-artemis-repo");
+      String downstreamRepositoryBaseName = FilenameUtils.getBaseName(downstreamRepository);
+      File repoDir = new File(targetDir, downstreamRepositoryBaseName + "-repo");
 
       if (repoDir.exists()) {
          gitRepository.open(repoDir);
@@ -224,28 +251,33 @@ public class App {
       userResolver.setDefaultUser(userResolver.getUserFromUsername(assignee));
 
 
+      //Initialize IssueManagerFactory
+      IssueManagerFactory issueManagerFactory = new IssueManagerFactory();
+
+
       // Load upstream issues
-      File upstreamIssuesFile = new File(targetDir, "upstream-issues.json");
-      IssueManager upstreamIssueManager = new JiraIssueManager(
-         "https://issues.apache.org/jira/rest/api/2", upstreamIssuesAuthString, "ARTEMIS", new ApacheIssueStateMachine());
+      File upstreamIssuesFile = new File(targetDir, downstreamRepositoryBaseName + "-upstream-issues.json");
+      IssueManager upstreamIssueManager = issueManagerFactory.getIssueManager(
+         upstreamIssuesServerURL, upstreamIssuesAuthString, upstreamIssuesProjectKey);
       if (upstreamIssuesFile.exists()) {
-         upstreamIssueManager.loadIssues(false, upstreamIssuesFile);
+         upstreamIssueManager.loadIssues( upstreamIssuesFile);
 
          for (Issue issue : upstreamIssueManager.getIssues()) {
             issue.getIssues().clear();
          }
       } else {
-         upstreamIssueManager.loadIssues(false);
+         upstreamIssueManager.loadIssues();
       }
 
 
       // Load downstream issues
-      File downstreamIssuesFile = new File(targetDir, "downstream-issues.json");
-      IssueManager downstreamIssueManager = new JiraIssueManager("https://issues.redhat.com/rest/api/2", downstreamIssuesAuthString, "ENTMQBR", new RedHatIssueStateMachine());
+      File downstreamIssuesFile = new File(targetDir, downstreamRepositoryBaseName + "-downstream-issues.json");
+      DownstreamIssueManager downstreamIssueManager = issueManagerFactory.getDownstreamIssueManager(
+         downstreamIssuesServerURL, downstreamIssuesAuthString, downstreamIssuesProjectKey, upstreamIssueManager);
       if (downstreamIssuesFile.exists()) {
-         downstreamIssueManager.loadIssues(true, downstreamIssuesFile);
+         downstreamIssueManager.loadIssues(downstreamIssuesFile);
       } else {
-         downstreamIssueManager.loadIssues(true);
+         downstreamIssueManager.loadIssues();
       }
 
       // Link upstream issues
@@ -429,7 +461,12 @@ public class App {
       commitProcessor.setCommitTestsDir(commitTestsDir);
 
       //Delete current commits file
-      File commitsFile = new File(targetDir, "commits.json");
+      File commitsFile;
+      if (commitsFilename != null) {
+         commitsFile = new File(commitsFilename);
+      } else {
+         commitsFile = new File(targetDir, downstreamRepositoryBaseName + "-commits.json");
+      }
       if (commitsFile.exists()) {
          if (!commitsFile.delete()) {
             throw new RuntimeException("Error deleting commits file");
@@ -465,7 +502,13 @@ public class App {
          downstreamIssueManager.storeIssues(downstreamIssuesFile);
       }
 
-      File payloadFile = new File(targetDir, "payload.csv");
+      File payloadFile;
+      if (payloadFilename != null) {
+         payloadFile = new File(payloadFilename);
+      } else {
+         payloadFile = new File(targetDir, downstreamRepositoryBaseName + "-payload.csv");
+      }
+
       try (CSVPrinter printer = new CSVPrinter(new FileWriter(payloadFile), CSVFormat.DEFAULT
          .withHeader("state", "release", "upstreamCommit", "downstreamCommit", "author", "summary", "upstreamIssue", "downstreamIssues", "upstreamTestCoverage"))) {
 

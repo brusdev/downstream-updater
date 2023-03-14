@@ -11,6 +11,7 @@ import dev.brus.downstream.updater.CommitProcessor;
 import dev.brus.downstream.updater.ReleaseVersion;
 import dev.brus.downstream.updater.git.GitCommit;
 import dev.brus.downstream.updater.git.GitRepository;
+import dev.brus.downstream.updater.issues.DownstreamIssueManager;
 import dev.brus.downstream.updater.issues.Issue;
 import dev.brus.downstream.updater.issues.IssueCustomerPriority;
 import dev.brus.downstream.updater.issues.IssueManager;
@@ -39,7 +40,7 @@ public class CommitProcessorTest {
 
    private IssueManager upstreamIssueManager;
 
-   private IssueManager downstreamIssueManager;
+   private DownstreamIssueManager downstreamIssueManager;
 
    @Before
    public void initMocks() {
@@ -54,7 +55,7 @@ public class CommitProcessorTest {
 
       upstreamIssueManager = Mockito.mock(IssueManager.class);
 
-      downstreamIssueManager = Mockito.mock(IssueManager.class);
+      downstreamIssueManager = Mockito.mock(DownstreamIssueManager.class);
    }
 
    @Test

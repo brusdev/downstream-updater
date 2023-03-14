@@ -135,6 +135,12 @@ public class JGitRepository implements GitRepository {
    }
 
    @Override
+   public String remoteGet(String name) throws Exception {
+      URIish remoteUri = new URIish(git.getRepository().getConfig().getString("remote", name, "url"));
+      return remoteUri.getScheme() + "://" + remoteUri.getHost() + remoteUri.getPath();
+   }
+
+   @Override
    public boolean branchExists(String name) throws Exception {
       return git.getRepository().resolve(name) != null;
    }

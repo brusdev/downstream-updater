@@ -21,22 +21,14 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,38 +42,45 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class JiraIssueManager implements IssueManager {
-   private final static Logger logger = LoggerFactory.getLogger(JiraIssueManager.class);
+public class GithubIssueManager implements IssueManager {
+   private final static Logger logger = LoggerFactory.getLogger(GithubIssueManager.class);
 
    private final static String ISSUE_TYPE_BUG = "Bug";
 
-   private static final String ISSUE_STATE_DONE = "Done";
+   private static final String ISSUE_STATE_DONE = "Closed";
 
-   private final static String dateFormatPattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
+   private final static String dateFormatPattern = "yyyy-MM-dd'T'HH:mm:SS'Z'";
 
-   private final static String queryDateFormatPattern = "yyyy-MM-dd HH:mm";
+   private final static Pattern serverURLPattern = Pattern.compile("https://api.github.com/repos/([^/]+)/([^/]+)/issues");
 
    private String serverURL;
    private String authString;
    private String projectKey;
    private String issueBaseUrl;
 
-   protected Map<String, Issue> issues;
+   private String owner;
+
+   private String repo;
+
+   private Map<String, Issue> issues;
 
    protected final SimpleDateFormat defaultDateFormat = new SimpleDateFormat(dateFormatPattern);
-   protected final SimpleDateFormat defaultQueryDateFormat = new SimpleDateFormat(queryDateFormatPattern);
+
    private Gson gson = new GsonBuilder().setDateFormat(dateFormatPattern).setPrettyPrinting().create();
 
    private Pattern issueKeyPattern;
 
+   @Override
    public String getServerURL() {
       return serverURL;
    }
 
+   @Override
    public String getAuthString() {
       return authString;
    }
 
+   @Override
    public String getProjectKey() {
       return projectKey;
    }
@@ -91,15 +90,23 @@ public class JiraIssueManager implements IssueManager {
       return issueBaseUrl;
    }
 
-   public JiraIssueManager(String serverURL, String authString, String projectKey) {
+   public GithubIssueManager(String serverURL, String authString, String projectKey) {
+      Matcher serverURLMatcher = serverURLPattern.matcher(serverURL);
+
+      if (!serverURLMatcher.find()) {
+         throw new IllegalArgumentException("Server URL doesn't match required pattern");
+      }
+
       this.serverURL = serverURL;
       this.authString = authString;
       this.projectKey = projectKey;
       this.issues = new HashMap<>();
 
-      this.issueBaseUrl = serverURL.replace("rest/api/2", "browse");
-      this.issueKeyPattern = Pattern.compile(projectKey + "-[0-9]+");
-   }
+      this.owner = serverURLMatcher.group(1);
+      this.repo = serverURLMatcher.group(2);
+      this.issueBaseUrl = "https://github.com/" + owner + "/" + repo + "/issues";
+      this.issueKeyPattern = Pattern.compile("(https://github.com/" + this.owner + "/" + this.repo + "/issues/|" + projectKey + "-|\\[#)([0-9]+)");
+  }
 
    @Override
    public Issue getIssue(String key) {
@@ -123,76 +130,48 @@ public class JiraIssueManager implements IssueManager {
 
    @Override
    public void loadIssues() throws Exception {
-      loadIssues((Date)null);
+      loadIssues(new Date(0));
    }
 
    private void loadIssues(Date lastUpdated) throws Exception {
-      int total = 0;
-      final int MAX_RESULTS = 250;
+      final int MAX_RESULTS = 100;
 
       String lastUpdatedQuery = "";
       if (lastUpdated != null) {
-         Calendar calendar = Calendar.getInstance();
-         calendar.setTime(lastUpdated);
-         calendar.add(Calendar.DATE, -1);
-         lastUpdatedQuery = " AND updated >= '" + defaultQueryDateFormat.format(calendar.getTime()) + "'";
+         SimpleDateFormat queryDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+         lastUpdatedQuery = "&since=" + queryDateFormat.format(lastUpdated);
       }
-      String query = "&jql=" + URLEncoder.encode("project = '" + projectKey + "'" + lastUpdatedQuery, StandardCharsets.UTF_8);
+      String query = "&state=all" + lastUpdatedQuery;
 
-      HttpURLConnection searchConnection = createConnection("/search?maxResults=0" + query);
-      try {
-         try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
-            JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
-
-            total = jsonObject.getAsJsonPrimitive("total").getAsInt();
-         }
-      } finally {
-         searchConnection.disconnect();
-      }
-
-      int taskCount = (int)Math.ceil((double)total / (double)MAX_RESULTS);
-      List<Callable<Integer>> tasks = new ArrayList<>();
-
-      for (int i = 0; i < taskCount; i++) {
-         final int start = i * MAX_RESULTS;
-
-         tasks.add(() -> loadIssues(query, start, MAX_RESULTS));
-      }
+      int page = 1;
+      int count = 0;
+      int pageCount = MAX_RESULTS;
 
       long beginTimestamp = System.nanoTime();
-      ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-      List<Future<Integer>> taskFutures = executorService.invokeAll(tasks);
+      while (pageCount == MAX_RESULTS) {
+         pageCount = loadIssues(query, page, MAX_RESULTS);
+
+         page++;
+         count += pageCount;
+      }
       long endTimestamp = System.nanoTime();
 
-      int count = 0;
-      for (Future<Integer> taskFuture : taskFutures) {
-         count += taskFuture.get();
-      }
-
-      executorService.shutdown();
-      logger.info("Loaded " + count + "/" + total + " issues in " + (endTimestamp - beginTimestamp) / 1000000 + " milliseconds");
-
-      if (count != total) {
-         throw new IllegalStateException("Error loading " + count + "/" + total + " issues");
-      }
+      logger.info("Loaded " + count + " issues in " + (endTimestamp - beginTimestamp) / 1000000 + " milliseconds");
    }
 
 
-   private int loadIssues(String query, int start, int maxResults) throws Exception {
+   private int loadIssues(String query, int page, int maxResults) throws Exception {
       int result = 0;
 
-      HttpURLConnection connection = createConnection("/search?fields=*all&maxResults=" + maxResults + "&startAt=" + start + query);
+      HttpURLConnection connection = createConnection("?page=" + page + "&per_page=" + maxResults + query);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
-            JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
+            JsonArray issuesArray = JsonParser.parseReader(inputStreamReader).getAsJsonArray();
 
-            JsonArray issuesArray = jsonObject.getAsJsonArray("issues");
-
-            DateFormat dateFormat = new SimpleDateFormat(dateFormatPattern);
             for (JsonElement issueElement : issuesArray) {
                JsonObject issueObject = issueElement.getAsJsonObject();
 
-               Issue issue = parseIssue(issueObject, dateFormat);
+               Issue issue = parseIssue(issueObject);
 
                issues.put(issue.getKey(), issue);
 
@@ -233,51 +212,52 @@ public class JiraIssueManager implements IssueManager {
       Matcher issueKeyMatcher = issueKeyPattern.matcher(s);
 
       while (issueKeyMatcher.find()) {
-         String upstreamIssueKey = issueKeyMatcher.group();
+         String issueNumber = issueKeyMatcher.group(2);
+         String upstreamIssueKey = projectKey + "-" + issueNumber;
          issueKeys.add(upstreamIssueKey);
       }
 
       return issueKeys;
    }
 
-   protected Issue parseIssue(JsonObject issueObject, DateFormat dateFormat) throws Exception {
-      String issueKey = issueObject.getAsJsonPrimitive("key").getAsString();
+   private Issue parseIssue(JsonObject issueObject) throws Exception {
+      int issueNumber = issueObject.getAsJsonPrimitive("number").getAsInt();
+      String issueKey = projectKey + "-" + issueNumber;
       logger.debug("loading issue " + issueKey);
 
-      if (dateFormat == null) {
-         dateFormat = defaultDateFormat;
-      }
-
-      JsonObject issueFields = issueObject.getAsJsonObject("fields");
-
-      JsonElement issueAssigneeElement = issueFields.get("assignee");
+      JsonElement issueAssigneeElement = issueObject.get("assignee");
       String issueAssignee = issueAssigneeElement != null && !issueAssigneeElement.isJsonNull() ?
-         issueFields.getAsJsonObject("assignee").getAsJsonPrimitive("name").getAsString() : null;
-      String issueCreator = issueFields.getAsJsonObject("creator").getAsJsonPrimitive("name").getAsString();
-      String issueReporter = issueFields.getAsJsonObject("reporter").getAsJsonPrimitive("name").getAsString();
-      String issueStatus = issueFields.getAsJsonObject("status").getAsJsonPrimitive("name").getAsString();
-      JsonElement issueDescriptionElement = issueFields.get("description");
-      String issueDescription = issueDescriptionElement == null || issueDescriptionElement.isJsonNull() ?
-         null : issueDescriptionElement.getAsString();
-      String issueType = issueFields.getAsJsonObject("issuetype").getAsJsonPrimitive("name").getAsString();
-      String issueSummary = issueFields.getAsJsonPrimitive("summary").getAsString();
-      Date issueCreated = dateFormat.parse(issueFields.getAsJsonPrimitive("created").getAsString());
-      Date issueUpdated = dateFormat.parse(issueFields.getAsJsonPrimitive("updated").getAsString());
+         issueAssigneeElement.getAsJsonObject().getAsJsonPrimitive("login").getAsString() : null;
+      String issueUser = issueObject.getAsJsonObject("user").getAsJsonPrimitive("login").getAsString();
+      String issueStatus = issueObject.getAsJsonPrimitive("state").getAsString();
+      JsonElement issueBodyElement = issueObject.get("body");
+      String issueDescription = issueBodyElement != null && !issueBodyElement.isJsonNull() ? issueBodyElement.getAsString() : null;
+      String issueType = "PullRequest";
+      List<String> issueLabels = parseLabels(issueObject.get("labels"));
+      if (issueLabels.contains("bug")) {
+         issueType = "Bug";
+      } else if (issueLabels.contains("enhancement")) {
+         issueType = "Enhancement";
+      }
+      String issueSummary = issueObject.getAsJsonPrimitive("title").getAsString();
+      Date issueCreated = defaultDateFormat.parse(issueObject.getAsJsonPrimitive("created_at").getAsString());
+      Date issueUpdated = defaultDateFormat.parse(issueObject.getAsJsonPrimitive("updated_at").getAsString());
+      String issueUrl = issueObject.getAsJsonPrimitive("html_url").getAsString();
 
       Issue issue = new Issue()
          .setKey(issueKey)
          .setAssignee(issueAssignee)
-         .setCreator(issueCreator)
-         .setReporter(issueReporter)
+         .setCreator(issueUser)
+         .setReporter(issueUser)
          .setState(issueStatus)
          .setSummary(issueSummary)
          .setDescription(issueDescription)
          .setCreated(issueCreated)
          .setUpdated(issueUpdated)
-         .setUrl(issueBaseUrl + "/" + issueKey)
+         .setUrl(issueUrl)
          .setType(issueType);
 
-      for (String label : parseLabels(issueFields.get("labels"))) {
+      for (String label : issueLabels) {
          issue.getLabels().add(label);
       }
 
@@ -287,13 +267,13 @@ public class JiraIssueManager implements IssueManager {
       return issue;
    }
 
-   protected List<String> parseLabels(JsonElement labelsElement) {
+   private List<String> parseLabels(JsonElement labelsElement) {
       List<String> labels = new ArrayList<>();
 
       if (labelsElement != null && !labelsElement.isJsonNull()) {
          for (JsonElement issueLabelElement : labelsElement.getAsJsonArray()) {
             if (issueLabelElement != null && !issueLabelElement.isJsonNull()) {
-               labels.add(issueLabelElement.getAsString());
+               labels.add(issueLabelElement.getAsJsonObject().getAsJsonPrimitive("name").getAsString());
             }
          }
       }
@@ -301,11 +281,10 @@ public class JiraIssueManager implements IssueManager {
       return labels;
    }
 
-   protected HttpURLConnection createConnection(String url) throws Exception {
+   private HttpURLConnection createConnection(String url) throws Exception {
       URL upstreamJIRA = new URL(serverURL + url);
       HttpURLConnection connection = (HttpURLConnection)upstreamJIRA.openConnection();
-      connection.setRequestProperty("Content-Type", "application/json");
-      connection.setRequestProperty("Accept", "application/json");
+      connection.setRequestProperty("Accept", "application/vnd.github+json");
 
       if (authString != null) {
          connection.setRequestProperty("Authorization", authString);

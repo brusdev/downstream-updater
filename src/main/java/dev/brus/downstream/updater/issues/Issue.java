@@ -34,6 +34,7 @@ public class Issue {
    private List<String> issues;
    private Date created;
    private Date updated;
+   private String url;
 
    private boolean customer;
    private IssueCustomerPriority customerPriority;
@@ -196,6 +197,15 @@ public class Issue {
 
    public Issue setUpdated(Date updated) {
       this.updated = updated;
+      return this;
+   }
+
+   public String getUrl() {
+      return url;
+   }
+
+   public Issue setUrl(String url) {
+      this.url = url;
       return this;
    }
 }
