@@ -15,10 +15,8 @@
  * limitations under the License.
  */
 
-package dev.brus.downstream.updater.issues;
+package dev.brus.downstream.updater.issue;
 
-import java.io.File;
-import java.util.Collection;
 import java.util.List;
 
 public interface DownstreamIssueManager extends IssueManager {

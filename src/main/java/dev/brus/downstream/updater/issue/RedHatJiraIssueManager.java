@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package dev.brus.downstream.updater.issues;
+package dev.brus.downstream.updater.issue;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -249,7 +249,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
             updatingIssueObject.add("fields", updatingFieldsObject);
          }
 
-         putIssue(issueKey, updatingIssueObject);
+         putIssue(issueKey, updatingIssueObject, 3);
       }
    }
 
@@ -332,6 +332,21 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       }
 
       putIssue(issueKey, updatingIssueObject);
+   }
+
+   private void putIssue(String issueKey, JsonObject issueObject, int retries) throws Exception {
+      while (true) {
+         try {
+            retries--;
+            putIssue(issueKey, issueObject);
+            break;
+         } catch (Exception e) {
+            logger.debug("Failed to put issue " + issueKey + ": " + e);
+            if (retries == 0) {
+               throw new IOException("Failed to put issue " + issueKey + ". Maximum retries reached.", e);
+            }
+         }
+      }
    }
 
    private void putIssue(String issueKey, JsonObject issueObject) throws Exception {

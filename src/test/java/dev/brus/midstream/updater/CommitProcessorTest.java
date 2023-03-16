@@ -2,21 +2,22 @@ package dev.brus.midstream.updater;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import dev.brus.downstream.updater.Commit;
 import dev.brus.downstream.updater.CommitProcessor;
-import dev.brus.downstream.updater.ReleaseVersion;
+import dev.brus.downstream.updater.util.ReleaseVersion;
 import dev.brus.downstream.updater.git.GitCommit;
 import dev.brus.downstream.updater.git.GitRepository;
-import dev.brus.downstream.updater.issues.DownstreamIssueManager;
-import dev.brus.downstream.updater.issues.Issue;
-import dev.brus.downstream.updater.issues.IssueCustomerPriority;
-import dev.brus.downstream.updater.issues.IssueManager;
-import dev.brus.downstream.updater.users.User;
-import dev.brus.downstream.updater.users.UserResolver;
+import dev.brus.downstream.updater.issue.DownstreamIssueManager;
+import dev.brus.downstream.updater.issue.Issue;
+import dev.brus.downstream.updater.issue.IssueCustomerPriority;
+import dev.brus.downstream.updater.issue.IssueManager;
+import dev.brus.downstream.updater.user.User;
+import dev.brus.downstream.updater.user.UserResolver;
 import dev.brus.midstream.updater.git.MockGitCommit;
 import org.junit.Assert;
 import org.junit.Before;
@@ -43,13 +44,15 @@ public class CommitProcessorTest {
    private DownstreamIssueManager downstreamIssueManager;
 
    @Before
-   public void initMocks() {
+   public void initMocks() throws Exception {
       releaseVersion = new ReleaseVersion("1.1.0.CR1");
 
       testUser = new User().setUsername(TEST_USERNAME)
          .setEmailAddresses(new String[] {TEST_EMAIL_ADDRESS});
 
       gitRepository = Mockito.mock(GitRepository.class);
+      Mockito.when(gitRepository.remoteGet("origin")).thenReturn("https://github.com/origin/test.git");
+      Mockito.when(gitRepository.remoteGet("upstream")).thenReturn("https://github.com/upstream/test.git");
 
       userResolver = new UserResolver(new User[] {testUser}).setDefaultUser(testUser);
 
@@ -60,9 +63,10 @@ public class CommitProcessorTest {
 
    @Test
    public void testCommitNotRequiringReleaseIssue() throws Exception {
+      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + " Test message";
       MockGitCommit upstreamCommit = new MockGitCommit()
          .setName("0")
-         .setShortMessage(UPSTREAM_ISSUE_KEY_0 + " Test message")
+         .setShortMessage(commitShortMessage)
          .setAuthorEmail(TEST_EMAIL_ADDRESS);
 
       Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0);
@@ -77,6 +81,7 @@ public class CommitProcessorTest {
       downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
 
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
       Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
@@ -114,9 +119,10 @@ public class CommitProcessorTest {
 
    @Test
    public void testCommitIncludedInRevertingChain() throws Exception {
+      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + " Test message";
       MockGitCommit revertedUpstreamCommit = new MockGitCommit()
          .setName("UP-0")
-         .setShortMessage(UPSTREAM_ISSUE_KEY_0 + " Test message")
+         .setShortMessage(commitShortMessage)
          .setAuthorEmail(TEST_EMAIL_ADDRESS);
 
       MockGitCommit revertedDownstreamCommit = new MockGitCommit()
@@ -153,6 +159,7 @@ public class CommitProcessorTest {
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
       Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
 
       Commit revertingCommit = commitProcessor.process(revertingUpstreamCommit);
       Assert.assertEquals(Commit.State.SKIPPED, revertingCommit.getState());

@@ -15,35 +15,16 @@
  * limitations under the License.
  */
 
-package dev.brus.downstream.updater.issues;
+package dev.brus.downstream.updater.issue;
 
-import java.io.File;
-import java.util.Collection;
-import java.util.List;
+public enum IssueSecurityImpact {
+   NONE,
+   LOW,
+   MODERATE,
+   IMPORTANT,
+   CRITICAL;
 
-public interface IssueManager {
-
-   String getServerURL();
-
-   String getAuthString();
-
-   String getProjectKey();
-
-   String getIssueBaseUrl();
-
-   void loadIssues() throws Exception;
-
-   void loadIssues(File file) throws Exception;
-
-   Issue getIssue(String key);
-
-   Collection<Issue> getIssues();
-
-   String getIssueTypeBug();
-
-   String getIssueStateDone();
-
-   void storeIssues(File file) throws Exception;
-
-   List<String> parseIssueKeys(String s);
+   public static IssueSecurityImpact fromName(String type) {
+      return IssueSecurityImpact.valueOf(type.toUpperCase());
+   }
 }

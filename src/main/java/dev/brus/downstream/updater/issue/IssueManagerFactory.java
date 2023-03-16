@@ -1,4 +1,4 @@
-package dev.brus.downstream.updater.issues;
+package dev.brus.downstream.updater.issue;
 
 public class IssueManagerFactory {
    public IssueManager getIssueManager(String serverURL, String authString, String projectKey) {

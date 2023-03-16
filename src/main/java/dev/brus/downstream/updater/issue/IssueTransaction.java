@@ -15,16 +15,27 @@
  * limitations under the License.
  */
 
-package dev.brus.downstream.updater.issues;
+package dev.brus.downstream.updater.issue;
 
-public enum IssueSecurityImpact {
-   NONE,
-   LOW,
-   MODERATE,
-   IMPORTANT,
-   CRITICAL;
+public class IssueTransaction {
+   private int id;
+   private String finalStatus;
 
-   public static IssueSecurityImpact fromName(String type) {
-      return IssueSecurityImpact.valueOf(type.toUpperCase());
+   public int getId() {
+      return id;
+   }
+
+   public IssueTransaction setId(int id) {
+      this.id = id;
+      return this;
+   }
+
+   public String getFinalStatus() {
+      return finalStatus;
+   }
+
+   public IssueTransaction setFinalStatus(String finalStatus) {
+      this.finalStatus = finalStatus;
+      return this;
    }
 }

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package dev.brus.downstream.updater.users;
+package dev.brus.downstream.updater.user;
 
 public class User {
    private String username;

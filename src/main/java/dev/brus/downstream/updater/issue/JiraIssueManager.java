@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package dev.brus.downstream.updater.issues;
+package dev.brus.downstream.updater.issue;
 
 import java.io.File;
 import java.io.InputStreamReader;
@@ -208,14 +208,18 @@ public class JiraIssueManager implements IssueManager {
 
    @Override
    public void loadIssues(File file) throws Exception {
-      Issue[] issuesArray = gson.fromJson(FileUtils.readFileToString(file, Charset.defaultCharset()), Issue[].class);
+      Date lastUpdated = null;
 
-      Date lastUpdated = new Date(0);
-      for (Issue issue : issuesArray) {
-         issues.put(issue.getKey(), issue);
+      Issue[] issuesArray = gson.fromJson(FileUtils.readFileToString(
+         file, Charset.defaultCharset()), Issue[].class);
 
-         if (lastUpdated.before(issue.getUpdated())) {
-            lastUpdated = issue.getUpdated();
+      if (issuesArray != null) {
+         for (Issue issue : issuesArray) {
+            issues.put(issue.getKey(), issue);
+
+            if (lastUpdated == null || lastUpdated.before(issue.getUpdated())) {
+               lastUpdated = issue.getUpdated();
+            }
          }
       }
 

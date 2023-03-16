@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package dev.brus.downstream.updater.issues;
+package dev.brus.downstream.updater.issue;
 
 import java.util.ArrayList;
 import java.util.Date;

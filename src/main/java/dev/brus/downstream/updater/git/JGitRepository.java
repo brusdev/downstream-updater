@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.TimeZone;
 
+import dev.brus.downstream.updater.util.CommandExecutor;
 import org.eclipse.jgit.api.CherryPickResult;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ResetCommand;
@@ -23,6 +24,7 @@ import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 
 public class JGitRepository implements GitRepository {
+
    private Git git;
 
    public JGitRepository() {
@@ -62,6 +64,16 @@ public class JGitRepository implements GitRepository {
 
    public boolean cherryPick(GitCommit commit) throws Exception {
       CherryPickResult cherryPickResult = git.cherryPick().include(((JGitCommit)commit).getRevCommit()).setNoCommit(true).call();
+
+      // Try the git command if JGit fails
+      if (cherryPickResult.getStatus() == CherryPickResult.CherryPickStatus.CONFLICTING) {
+         resetHard();
+
+         int exitCode = CommandExecutor.execute("git cherry-pick --no-commit " + commit.getName(),
+            getDirectory().getParentFile(), null);
+
+         return exitCode == 0;
+      }
 
       return cherryPickResult.getStatus() == CherryPickResult.CherryPickStatus.OK;
    }

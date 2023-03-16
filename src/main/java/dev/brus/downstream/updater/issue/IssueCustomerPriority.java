@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package dev.brus.downstream.updater.issues;
+package dev.brus.downstream.updater.issue;
 
 public enum IssueCustomerPriority {
    NONE,

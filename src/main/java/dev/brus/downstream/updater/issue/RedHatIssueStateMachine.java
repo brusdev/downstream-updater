@@ -1,4 +1,4 @@
-package dev.brus.downstream.updater.issues;
+package dev.brus.downstream.updater.issue;
 
 public class RedHatIssueStateMachine implements IssueStateMachine {
 

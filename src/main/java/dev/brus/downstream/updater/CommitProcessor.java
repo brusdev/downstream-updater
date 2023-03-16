@@ -19,17 +19,20 @@ package dev.brus.downstream.updater;
 
 import dev.brus.downstream.updater.git.GitCommit;
 import dev.brus.downstream.updater.git.GitRepository;
-import dev.brus.downstream.updater.issues.DownstreamIssueManager;
-import dev.brus.downstream.updater.issues.Issue;
-import dev.brus.downstream.updater.issues.IssueCustomerPriority;
-import dev.brus.downstream.updater.issues.IssueManager;
-import dev.brus.downstream.updater.issues.IssueSecurityImpact;
-import dev.brus.downstream.updater.users.User;
-import dev.brus.downstream.updater.users.UserResolver;
+import dev.brus.downstream.updater.issue.DownstreamIssueManager;
+import dev.brus.downstream.updater.issue.Issue;
+import dev.brus.downstream.updater.issue.IssueCustomerPriority;
+import dev.brus.downstream.updater.issue.IssueManager;
+import dev.brus.downstream.updater.issue.IssueSecurityImpact;
+import dev.brus.downstream.updater.user.User;
+import dev.brus.downstream.updater.user.UserResolver;
+import dev.brus.downstream.updater.util.CommandExecutor;
+import dev.brus.downstream.updater.util.ReleaseVersion;
 import org.apache.commons.io.FileUtils;
 import org.apache.maven.plugin.surefire.log.api.NullConsoleLogger;
 import org.apache.maven.plugins.surefire.report.ReportTestSuite;
 import org.apache.maven.plugins.surefire.report.SurefireReportParser;
+import org.apache.tools.ant.types.Commandline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +62,9 @@ public class CommitProcessor {
    private static final String COMMITTER_EMAIL = "messaging-infra@redhat.com";
 
    private static final String FUTURE_GA_RELEASE = "Future GA";
+
+   private static final String REPO_TYPE_MAKE = "MAKE";
+   private static final String REPO_TYPE_MAVEN = "MAVEN";
 
    private static final String TEST_PATH = "src/test/java/";
 
@@ -272,11 +278,16 @@ public class CommitProcessor {
       String upstreamRemoteUri = gitRepository.remoteGet("upstream");
 
       Commit commit = new Commit()
+         .setAssignee(userResolver.getDefaultUser().getUsername())
+         .setAuthor(upstreamCommit.getAuthorName())
          .setUpstreamCommit(upstreamCommit.getName())
          .setUpstreamCommitUrl(upstreamRemoteUri.replace(".git", "/commit/" + upstreamCommit.getName()))
+         .setDownstreamCommit(cherryPickedCommit != null ? cherryPickedCommit.getKey().getName() : null)
+         .setDownstreamCommitUrl(cherryPickedCommit != null ? downstreamRemoteUri.replace(".git", "/commit/" + cherryPickedCommit.getKey().getName()) : null)
+         .setDownstreamIssuesBaseUrl(downstreamIssueManager.getIssueBaseUrl())
          .setSummary(upstreamCommit.getShortMessage())
-         .setAssignee(userResolver.getDefaultUser().getUsername())
          .setRelease(candidateReleaseVersion.toString())
+         .setTests(getCommitTests(upstreamCommit))
          .setState(Commit.State.DONE);
 
       List<String> upstreamRevertingChain = upstreamRevertingChains.get(upstreamCommit.getName());
@@ -300,8 +311,12 @@ public class CommitProcessor {
          }
 
          if (upstreamIssueKey == null) {
-            logger.info("SKIPPED because the commit message does not include an upstream issue key");
-            commit.setState(Commit.State.SKIPPED).setReason("NO_UPSTREAM_ISSUE");
+            if (processCommitTask(commit, release, candidate, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT, upstreamCommit.getName(), null, confirmedTasks)) {
+               commit.setState(Commit.State.DONE);
+            } else {
+               logger.info("SKIPPED because the commit message does not include an upstream issue key");
+               commit.setState(Commit.State.SKIPPED).setReason("NO_UPSTREAM_ISSUE");
+            }
             return commit;
          }
       }
@@ -338,13 +353,6 @@ public class CommitProcessor {
          }
          return commit;
       }
-
-
-      commit.setAuthor(upstreamCommit.getAuthorName());
-      commit.setDownstreamCommit(cherryPickedCommit != null ? cherryPickedCommit.getKey().getName() : null);
-      commit.setDownstreamCommitUrl(cherryPickedCommit != null ? downstreamRemoteUri.replace(".git", "/commit/" + cherryPickedCommit.getKey().getName()) : null);
-      commit.setDownstreamIssuesBaseUrl(downstreamIssueManager.getIssueBaseUrl());
-      commit.setTests(getCommitTests(upstreamCommit));
 
 
       // Get downstreamIssueKeys
@@ -619,44 +627,56 @@ public class CommitProcessor {
    }
 
    private boolean testCommit(Commit commit) throws Exception {
+      //Detect the repo type
+      String repoType = null;
+      File makefileFile = new File(gitRepository.getDirectory().getParentFile(), "Makefile");
+      if (makefileFile.exists()) {
+         repoType = REPO_TYPE_MAKE;
+      } else {
+         File pomXmlFile = new File(gitRepository.getDirectory().getParentFile(), "pom.xml");
+         if (pomXmlFile.exists()) {
+            repoType = REPO_TYPE_MAVEN;
+         } else {
+            throw new UnsupportedOperationException("Commit test supported only for the repo types: go and maven");
+         }
+      }
+
       File commitTestDir = new File(commitTestsDir, commit.getUpstreamCommit());
       commitTestDir.mkdirs();
 
       File outputCommitTestFile = new File(commitTestDir, "output.log");
       try (BufferedWriter outputCommitTestWriter = new BufferedWriter(new FileWriter(outputCommitTestFile))) {
-         int mavenResult;
-         String outputCommitTestLine;
-         List<String> mevaneCommitTestCommand = buildMavenCommitTestCommand(commit);
-
-         outputCommitTestLine = String.join(" ", mevaneCommitTestCommand);
-         logger.debug(outputCommitTestLine);
-         outputCommitTestWriter.write(outputCommitTestLine);
-         outputCommitTestWriter.newLine();
-
-         ProcessBuilder mavenProcessBuilder = new ProcessBuilder(mevaneCommitTestCommand)
-                 .directory(gitRepository.getDirectory().getParentFile())
-                 .redirectErrorStream(true);
-
-         Process mavenProcess = mavenProcessBuilder.start();
-
-         try (BufferedReader outputProcessReader = new BufferedReader(new InputStreamReader(mavenProcess.getInputStream()))) {
-            while ((outputCommitTestLine = outputProcessReader.readLine ()) != null) {
-               logger.debug(outputCommitTestLine);
-               outputCommitTestWriter.write(outputCommitTestLine);
-               outputCommitTestWriter.newLine();
-            }
-
-            mavenResult = mavenProcess.waitFor();
-
-            outputCommitTestLine = "Process finished with exit code " + mavenResult;
-            logger.debug(outputCommitTestLine);
-            outputCommitTestWriter.write(outputCommitTestLine);
-            outputCommitTestWriter.newLine();
+         if (REPO_TYPE_MAKE.equals(repoType)) {
+            return testMakeCommit(commit, commitTestDir, outputCommitTestWriter);
+         } else if (REPO_TYPE_MAVEN.equals(repoType)) {
+            return testMavenCommit(commit, commitTestDir, outputCommitTestWriter);
+         } else {
+            throw new IllegalStateException("Commit test unsupported for the repo type: " + repoType);
          }
+      }
+   }
 
-         if (mavenResult != 0) {
-            return false;
-         }
+   private boolean testMakeCommit(Commit commit, File commitTestDir, BufferedWriter outputCommitTestWriter) throws Exception {
+      String[] makeCommitTestCommand = Commandline.translateCommandline("make test");
+
+      int exitCode = CommandExecutor.execute("make test",
+         gitRepository.getDirectory().getParentFile(), outputCommitTestWriter);
+
+      if (exitCode != 0) {
+         return false;
+      }
+
+      return true;
+   }
+
+   private boolean testMavenCommit(Commit commit, File commitTestDir, BufferedWriter outputCommitTestWriter) throws Exception {
+      String mavenCommitTestCommand = buildMavenCommitTestCommand(commit);
+
+      int exitCode = CommandExecutor.execute(mavenCommitTestCommand,
+         gitRepository.getDirectory().getParentFile(), outputCommitTestWriter);
+
+      if (exitCode != 0) {
+         return false;
       }
 
       //Check tests
@@ -686,25 +706,25 @@ public class CommitProcessor {
       return true;
    }
 
-   private List<String> buildMavenCommitTestCommand(Commit commit) {
-      List<String> testCommand = new ArrayList<>();
+   private String buildMavenCommitTestCommand(Commit commit) {
+      StringBuilder testCommand = new StringBuilder();
 
-      testCommand.add("mvn");
-      testCommand.add("--show-version");
+      testCommand.append("mvn");
+      testCommand.append(" --show-version");
 
       if (commit.getTests().size() > 0) {
-         testCommand.add("--activate-profiles=dev,tests,redhat-indy");
-         testCommand.add("--define=failIfNoTests=false");
-         testCommand.add("--define=test=" + String.join(",", commit.getTests()));
+         testCommand.append(" --activate-profiles=dev,tests,redhat-indy");
+         testCommand.append(" --define=failIfNoTests=false");
+         testCommand.append(" --define=test=" + String.join(",", commit.getTests()));
       } else {
-         testCommand.add("--activate-profiles=dev,redhat-indy");
-         testCommand.add("--define=skipTests=true");
+         testCommand.append(" --activate-profiles=dev,redhat-indy");
+         testCommand.append(" --define=skipTests=true");
       }
 
-      testCommand.add("clean");
-      testCommand.add("package");
+      testCommand.append(" clean");
+      testCommand.append(" package");
 
-      return testCommand;
+      return testCommand.toString();
    }
 
    private void cherryPickUpstreamCommit(Commit commit, String key, String value, CommitTask commitTask) throws Exception {
@@ -719,8 +739,11 @@ public class CommitProcessor {
             commitTask.setResult("TEST_COMMIT_FAILED");
          } else {
             String commitMessage = upstreamCommit.getFullMessage() + "\n" +
-               "(cherry picked from commit " + upstreamCommit.getName() + ")\n\n" +
-               "downstream: " + value;
+               "(cherry picked from commit " + upstreamCommit.getName() + ")";
+
+            if (value != null) {
+               commitMessage += "\n\n" + "downstream: " + value;
+            }
 
             GitCommit cherryPickedCommit = gitRepository.commit(commitMessage,
                                                                 upstreamCommit.getAuthorName(),

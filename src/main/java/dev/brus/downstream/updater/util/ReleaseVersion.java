@@ -15,20 +15,22 @@
  * limitations under the License.
  */
 
-package dev.brus.downstream.updater;
+package dev.brus.downstream.updater.util;
 
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.lang3.StringUtils;
+
 public class ReleaseVersion implements Comparable<ReleaseVersion> {
    private final static Pattern versionPattern = Pattern.compile("([0-9]+)\\.([0-9]+)\\.([0-9]+)(\\.(.*))*\\.(CR[0-9]+|GA)");
 
-   private int major;
-   private int minor;
-   private int patch;
-   private String qualifier;
-   private String candidate;
+   private final int major;
+   private final int minor;
+   private final int patch;
+   private final String qualifier;
+   private final String candidate;
 
    public int getMajor() {
       return major;
@@ -56,11 +58,19 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
          throw new IllegalArgumentException("Invalid release: " + release);
       }
 
-      major = Integer.parseInt(releaseVersionMatcher.group(1));
-      minor = Integer.parseInt(releaseVersionMatcher.group(2));
-      patch = Integer.parseInt(releaseVersionMatcher.group(3));
-      qualifier = releaseVersionMatcher.group(5);
-      candidate = releaseVersionMatcher.group(6);
+      this.major = Integer.parseInt(releaseVersionMatcher.group(1));
+      this.minor = Integer.parseInt(releaseVersionMatcher.group(2));
+      this.patch = Integer.parseInt(releaseVersionMatcher.group(3));
+      this.qualifier = releaseVersionMatcher.group(5);
+      this.candidate = releaseVersionMatcher.group(6);
+   }
+
+   public ReleaseVersion(int major, int minor, int patch, String qualifier, String candidate) {
+      this.major = major;
+      this.minor = minor;
+      this.patch = patch;
+      this.qualifier = qualifier;
+      this.candidate = candidate;
    }
 
    public static int compare(String releaseX, String releaseY) {
@@ -80,7 +90,10 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
 
    @Override
    public String toString() {
-      return major + "." + minor + "." + patch + "." + qualifier;
+      if (qualifier == null) {
+         return major + "." + minor + "." + patch + "." + candidate;
+      }
+      return major + "." + minor + "." + patch + "." + qualifier + "." + candidate;
    }
 
    @Override
@@ -88,14 +101,20 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
       if (this.getMajor() == releaseVersion.getMajor() &&
          this.getMinor() == releaseVersion.getMinor() &&
          this.getPatch() == releaseVersion.getPatch() &&
-         this.getQualifier().compareTo(releaseVersion.getQualifier()) == 0 &&
-         this.getCandidate().compareTo(releaseVersion.getCandidate()) == 0) {
+         Objects.equals(this.getQualifier(), releaseVersion.getQualifier()) &&
+         Objects.equals(this.getCandidate(), releaseVersion.getCandidate())) {
          return 0;
-      } else if (this.getMajor() > releaseVersion.getMajor() ||
-         this.getMajor() == releaseVersion.getMajor() && this.getMinor() > releaseVersion.getMinor() ||
-         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() > releaseVersion.getPatch() ||
-         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() == releaseVersion.getPatch() && this.getQualifier().compareTo(releaseVersion.getQualifier()) > 0 ||
-         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() == releaseVersion.getPatch() && this.getQualifier().compareTo(releaseVersion.getQualifier()) == 0 && this.getCandidate().compareTo(releaseVersion.getCandidate()) > 0) {
+      } else if ((this.getMajor() > releaseVersion.getMajor()) ||
+         (this.getMajor() == releaseVersion.getMajor() && this.getMinor() > releaseVersion.getMinor()) ||
+         (this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() &&
+            this.getPatch() > releaseVersion.getPatch()) ||
+         (this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() &&
+            this.getPatch() == releaseVersion.getPatch() &&
+            StringUtils.compare(this.getQualifier(), releaseVersion.getQualifier()) > 0) ||
+         (this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() &&
+            this.getPatch() == releaseVersion.getPatch() &&
+            StringUtils.compare(this.getQualifier(), releaseVersion.getQualifier()) == 0 &&
+            StringUtils.compare(this.getCandidate(), releaseVersion.getCandidate()) > 0)) {
          return 1;
       } else {
          return -1;
@@ -103,18 +122,13 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
    }
 
    public int compareWithoutCandidateTo(ReleaseVersion releaseVersion) {
-      if (this.getMajor() == releaseVersion.getMajor() &&
-         this.getMinor() == releaseVersion.getMinor() &&
-         this.getPatch() == releaseVersion.getPatch() &&
-         this.getQualifier() == releaseVersion.getQualifier()) {
-         return 0;
-      } else if (this.getMajor() > releaseVersion.getMajor() ||
-         this.getMajor() == releaseVersion.getMajor() && this.getMinor() > releaseVersion.getMinor() ||
-         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() > releaseVersion.getPatch() ||
-         this.getMajor() == releaseVersion.getMajor() && this.getMinor() == releaseVersion.getMinor() && this.getPatch() == releaseVersion.getPatch() && this.getQualifier().compareTo(releaseVersion.getQualifier()) > 0) {
-         return 1;
-      } else {
-         return -1;
-      }
+      ReleaseVersion comparingReleaseVersion = new ReleaseVersion(
+         releaseVersion.getMajor(),
+         releaseVersion.getMinor(),
+         releaseVersion.getPatch(),
+         releaseVersion.getQualifier(),
+         this.getCandidate());
+
+      return compareTo(comparingReleaseVersion);
    }
 }
