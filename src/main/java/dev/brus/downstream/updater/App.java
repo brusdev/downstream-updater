@@ -411,7 +411,9 @@ public class App {
          Commit[] confirmedCommitsArray = gson.fromJson(FileUtils.readFileToString(
             confirmedCommitsFile, Charset.defaultCharset()), Commit[].class);
          for (Commit confirmedCommit : confirmedCommitsArray) {
-            confirmedCommits.put(confirmedCommit.getUpstreamCommit(), confirmedCommit);
+            if (confirmedCommit.getRelease().equals(release)) {
+               confirmedCommits.put(confirmedCommit.getUpstreamCommit(), confirmedCommit);
+            }
          }
       }
 
