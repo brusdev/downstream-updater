@@ -261,10 +261,13 @@ public class CommitProcessor {
          candidateReleaseVersion = cherryPickedCommit.getValue();
       }
 
-      String release = "AMQ " + candidateReleaseVersion.getMajor() + "." +
-         candidateReleaseVersion.getMinor() + "." +
-         candidateReleaseVersion.getPatch() + "." +
-         candidateReleaseVersion.getQualifier() + ".GA";
+      String release = "AMQ " + candidateReleaseVersion.getMajor() +
+         "." + candidateReleaseVersion.getMinor() +
+         "." + candidateReleaseVersion.getPatch();
+      if (candidateReleaseVersion.getQualifier() != null) {
+         release += "." + candidateReleaseVersion.getQualifier();
+      }
+      release += ".GA";
       String candidate = candidateReleaseVersion.getCandidate();
 
 
@@ -557,7 +560,7 @@ public class CommitProcessor {
          ReleaseVersion targetReleaseVersion;
 
          try {
-            targetReleaseVersion = new ReleaseVersion(downstreamIssue.getTargetRelease());
+            targetReleaseVersion = ReleaseVersion.fromString(downstreamIssue.getTargetRelease());
          } catch (Exception e) {
             targetReleaseVersion = null;
          }
@@ -810,7 +813,7 @@ public class CommitProcessor {
          commitTask.setState(CommitTask.State.EXECUTED);
       } else if (type == CommitTask.Type.CLONE_DOWNSTREAM_ISSUE) {
          Issue cloningIssue = downstreamIssueManager.getIssue(key);
-         ReleaseVersion releaseVersion = new ReleaseVersion(release);
+         ReleaseVersion releaseVersion = ReleaseVersion.fromString(release);
          String summaryPrefix = "[" + releaseVersion.getMajor() + "." + releaseVersion.getMinor() + "]";
 
          List<String> labels = new ArrayList<>();

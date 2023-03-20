@@ -13,7 +13,7 @@ public class ReleaseVersionTest {
    }
 
    private void testReleaseVersionToString(String releaseVersionText) {
-      ReleaseVersion releaseVersion = new ReleaseVersion(releaseVersionText);
+      ReleaseVersion releaseVersion = ReleaseVersion.fromString(releaseVersionText);
       Assert.assertEquals(releaseVersionText, releaseVersion.toString());
    }
 
@@ -35,4 +35,8 @@ public class ReleaseVersionTest {
       Assert.assertTrue(ReleaseVersion.compare("7.10.0.CR1", "7.10.1.OPR.1.CR1") < 0);
    }
 
+   @Test
+   public void testCompareWithoutCandidateTo() {
+      Assert.assertEquals(0, ReleaseVersion.fromString("7.10.0.CR1").compareWithoutCandidateTo(ReleaseVersion.fromString("7.10.0.CR1")));
+   }
 }

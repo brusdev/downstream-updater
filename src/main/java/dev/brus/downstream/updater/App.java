@@ -123,7 +123,7 @@ public class App {
       String assignee = line.getOptionValue(ASSIGNEE_OPTION);
 
       String release = line.getOptionValue(RELEASE_OPTION);
-      ReleaseVersion candidateReleaseVersion = new ReleaseVersion(release);
+      ReleaseVersion candidateReleaseVersion = ReleaseVersion.fromString(release);
 
       String upstreamRepository = line.getOptionValue(UPSTREAM_REPOSITORY_OPTION);
       String upstreamBranch = line.getOptionValue(UPSTREAM_BRANCH_OPTION);
@@ -353,10 +353,10 @@ public class App {
             Matcher prepareReleaseCommitMatcher = prepareReleaseCommitPattern.matcher(commit.getShortMessage());
             if (prepareReleaseCommitMatcher.find()) {
                logger.info("prepare release commit found: " + commit.getName() + " - " + commit.getShortMessage());
-               cherryPickedReleaseVersion = new ReleaseVersion(prepareReleaseCommitMatcher.group(1));
+               cherryPickedReleaseVersion = ReleaseVersion.fromString(prepareReleaseCommitMatcher.group(1));
             } else if (commit.getShortMessage().startsWith("7.8.")) {
                logger.info("legacy release commit found: " + commit.getName() + " - " + commit.getShortMessage());
-               cherryPickedReleaseVersion = new ReleaseVersion(commit.getShortMessage());
+               cherryPickedReleaseVersion = ReleaseVersion.fromString(commit.getShortMessage());
             } else {
                downstreamCommits.push(new AbstractMap.SimpleEntry<>(commit, cherryPickedReleaseVersion));
 

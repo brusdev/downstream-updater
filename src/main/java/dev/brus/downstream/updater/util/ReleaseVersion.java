@@ -52,17 +52,18 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
       return candidate;
    }
 
-   public ReleaseVersion(String release) {
+   public static ReleaseVersion fromString(String release) {
       Matcher releaseVersionMatcher = versionPattern.matcher(release);
       if (!releaseVersionMatcher.find()) {
          throw new IllegalArgumentException("Invalid release: " + release);
       }
 
-      this.major = Integer.parseInt(releaseVersionMatcher.group(1));
-      this.minor = Integer.parseInt(releaseVersionMatcher.group(2));
-      this.patch = Integer.parseInt(releaseVersionMatcher.group(3));
-      this.qualifier = releaseVersionMatcher.group(5);
-      this.candidate = releaseVersionMatcher.group(6);
+      return new ReleaseVersion(
+         Integer.parseInt(releaseVersionMatcher.group(1)),
+         Integer.parseInt(releaseVersionMatcher.group(2)),
+         Integer.parseInt(releaseVersionMatcher.group(3)),
+         releaseVersionMatcher.group(5),
+         releaseVersionMatcher.group(6));
    }
 
    public ReleaseVersion(int major, int minor, int patch, String qualifier, String candidate) {
@@ -81,8 +82,8 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
       } else if (releaseY == null || releaseY.isEmpty()) {
          return 1;
       } else {
-         ReleaseVersion releaseVersionX = new ReleaseVersion(releaseX);
-         ReleaseVersion releaseVersionY = new ReleaseVersion(releaseY);
+         ReleaseVersion releaseVersionX = ReleaseVersion.fromString(releaseX);
+         ReleaseVersion releaseVersionY = ReleaseVersion.fromString(releaseY);
 
          return releaseVersionX.compareTo(releaseVersionY);
       }

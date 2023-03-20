@@ -45,7 +45,7 @@ public class CommitProcessorTest {
 
    @Before
    public void initMocks() throws Exception {
-      releaseVersion = new ReleaseVersion("1.1.0.CR1");
+      releaseVersion = ReleaseVersion.fromString("1.1.0.CR1");
 
       testUser = new User().setUsername(TEST_USERNAME)
          .setEmailAddresses(new String[] {TEST_EMAIL_ADDRESS});
