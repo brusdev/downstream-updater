@@ -487,15 +487,21 @@ public class App {
          }
       } finally {
          // Store commits
+
          // Ignore SKIPPED commits and DONE commits without EXECUTED tasks
-         /*
+         //FileUtils.writeStringToFile(commitsFile, gson.toJson(commits.stream()
+         //   .filter(commit -> (commit.getState() != Commit.State.SKIPPED && commit.getState() != Commit.State.DONE) ||
+         //      (commit.getState() == Commit.State.DONE && commit.getTasks().stream()
+         //         .anyMatch(commitTask -> CommitTask.State.EXECUTED.equals(commitTask.getState()))))
+         //   .collect(Collectors.toList())), Charset.defaultCharset());
+
+         //FileUtils.writeStringToFile(commitsFile, gson.toJson(commits), Charset.defaultCharset());
+
+         // Ignore DONE commits of other releases
          FileUtils.writeStringToFile(commitsFile, gson.toJson(commits.stream()
-            .filter(commit -> (commit.getState() != Commit.State.SKIPPED && commit.getState() != Commit.State.DONE) ||
-               (commit.getState() == Commit.State.DONE && commit.getTasks().stream()
-                  .anyMatch(commitTask -> CommitTask.State.EXECUTED.equals(commitTask.getState()))))
+            .filter(commit -> (commit.getState() != Commit.State.DONE) ||
+               (commit.getState() == Commit.State.DONE && commit.getRelease().equals(release)))
             .collect(Collectors.toList())), Charset.defaultCharset());
-          */
-         FileUtils.writeStringToFile(commitsFile, gson.toJson(commits), Charset.defaultCharset());
 
          // Store upstream issues
          upstreamIssueManager.storeIssues(upstreamIssuesFile);
