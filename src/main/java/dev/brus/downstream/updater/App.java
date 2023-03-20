@@ -468,7 +468,7 @@ public class App {
       if (commitsFilename != null) {
          commitsFile = new File(commitsFilename);
       } else {
-         commitsFile = new File(targetDir, downstreamRepositoryBaseName + "-commits.json");
+         commitsFile = new File(targetDir, downstreamRepositoryBaseName + "-" + release + "-commits.json");
       }
       if (commitsFile.exists()) {
          if (!commitsFile.delete()) {
