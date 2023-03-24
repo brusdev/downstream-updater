@@ -32,7 +32,7 @@ public class JGitRepository implements GitRepository {
    }
 
    public File getDirectory() {
-      return git.getRepository().getDirectory();
+      return git.getRepository().getDirectory().getParentFile();
    }
 
    @Override
@@ -69,8 +69,8 @@ public class JGitRepository implements GitRepository {
       if (cherryPickResult.getStatus() == CherryPickResult.CherryPickStatus.CONFLICTING) {
          resetHard();
 
-         int exitCode = CommandExecutor.execute("git cherry-pick --no-commit " + commit.getName(),
-            getDirectory().getParentFile(), null);
+         int exitCode = CommandExecutor.tryExecute("git cherry-pick --no-commit " + commit.getName(),
+            getDirectory(), null);
 
          return exitCode == 0;
       }

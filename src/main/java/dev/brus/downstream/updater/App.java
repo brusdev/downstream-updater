@@ -74,10 +74,12 @@ public class App {
    private static final String DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY = "downstream-issues-customer-priority";
    private static final String DOWNSTREAM_ISSUES_SECURITY_IMPACT = "downstream-issues-security-impact";
    private static final String RELEASE_OPTION = "release";
+   private static final String TARGET_RELEASE_FORMAT_OPTION = "target-release-format";
    private static final String ASSIGNEE_OPTION = "assignee";
    private static final String CHECK_INCOMPLETE_COMMITS_OPTION = "check-incomplete-commits";
+   private static final String CHECK_COMMAND_OPTION = "check-command";
+   private static final String CHECK_TESTS_COMMAND_OPTION = "check-tests-command";
    private static final String DRY_RUN_OPTION = "dry-run";
-   private static final String SKIP_COMMIT_TEST_OPTION = "skip-commit-test";
 
 
    public static void main(String[] args) throws Exception {
@@ -85,6 +87,7 @@ public class App {
       Options options = new Options();
       options.addOption(createOption("a", ASSIGNEE_OPTION, true, true, false, "the default assignee, i.e. dbruscin"));
       options.addOption(createOption(null, RELEASE_OPTION, true, true, false, "the release, i.e. 7.11.0.CR1"));
+      options.addOption(createOption(null, TARGET_RELEASE_FORMAT_OPTION, true, true, false, "the target release format, i.e. AMQ %d.%d.%d.GA"));
       options.addOption(createOption(null, UPSTREAM_REPOSITORY_OPTION, true, true, false, "the upstream repository to cherry-pick from, i.e. https://github.com/apache/activemq-artemis.git"));
       options.addOption(createOption(null, UPSTREAM_BRANCH_OPTION, true, true, false, "the upstream branch to cherry-pick from, i.e. main"));
       options.addOption(createOption(null, DOWNSTREAM_REPOSITORY_OPTION, true, true, false, "the downstream repository to cherry-pick to, i.e. https://github.com/rh-messaging/activemq-artemis.git"));
@@ -108,8 +111,9 @@ public class App {
       options.addOption(createOption(null, DOWNSTREAM_ISSUES_SECURITY_IMPACT, false, true, false, "the security impact to filter downstream issues, i.e. IMPORTANT"));
 
       options.addOption(createOption(null, CHECK_INCOMPLETE_COMMITS_OPTION, false, false, true, "check tasks of cherry-picked commits"));
+      options.addOption(createOption(null, CHECK_COMMAND_OPTION, false, true, true, "command to check cherry-picked commits"));
+      options.addOption(createOption(null, CHECK_TESTS_COMMAND_OPTION, false, true, true, "command to test cherry-picked commits with tests"));
       options.addOption(createOption(null, DRY_RUN_OPTION, false, false, false, "dry run"));
-      options.addOption(createOption(null, SKIP_COMMIT_TEST_OPTION, false, false, true, "skip commit test"));
 
       CommandLine line;
       CommandLineParser parser = new DefaultParser();
@@ -124,6 +128,8 @@ public class App {
 
       String release = line.getOptionValue(RELEASE_OPTION);
       ReleaseVersion candidateReleaseVersion = ReleaseVersion.fromString(release);
+
+      String targetReleaseFormat = line.getOptionValue(TARGET_RELEASE_FORMAT_OPTION);
 
       String upstreamRepository = line.getOptionValue(UPSTREAM_REPOSITORY_OPTION);
       String upstreamBranch = line.getOptionValue(UPSTREAM_BRANCH_OPTION);
@@ -193,9 +199,14 @@ public class App {
 
       boolean dryRun = line.hasOption(DRY_RUN_OPTION);
 
-      boolean skipCommitTest = false;
-      if (line.hasOption(SKIP_COMMIT_TEST_OPTION)) {
-         skipCommitTest = Boolean.parseBoolean(line.getOptionValue(SKIP_COMMIT_TEST_OPTION, "true"));
+      String checkCommand = null;
+      if (line.hasOption(CHECK_COMMAND_OPTION)) {
+         checkCommand = line.getOptionValue(CHECK_COMMAND_OPTION, null);
+      }
+
+      String checkTestsCommand = null;
+      if (line.hasOption(CHECK_TESTS_COMMAND_OPTION)) {
+         checkTestsCommand = line.getOptionValue(CHECK_TESTS_COMMAND_OPTION, null);
       }
 
       // Initialize target directory
@@ -431,19 +442,20 @@ public class App {
       Map<String, Issue> excludedUpstreamIssues = loadIssues(excludedUpstreamIssueKeys, upstreamIssueManager);
 
 
-      // Initialize test dir
-      File commitTestsDir = new File(targetDir, "commit-tests");
-      if (commitTestsDir.exists()) {
-         FileUtils.deleteDirectory(commitTestsDir);
+      // Initialize commits dir
+      File commitsDir = new File(targetDir, "commits");
+      if (commitsDir.exists()) {
+         FileUtils.deleteDirectory(commitsDir);
       }
-      if (!commitTestsDir.mkdirs()) {
-         throw new RuntimeException("Error creating commit tests directory");
+      if (!commitsDir.mkdirs()) {
+         throw new RuntimeException("Error creating commits directory");
       }
 
 
       // Init commit parser
       CommitProcessor commitProcessor = new CommitProcessor(
          candidateReleaseVersion,
+         targetReleaseFormat,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -460,8 +472,9 @@ public class App {
       commitProcessor.setDownstreamIssuesSecurityImpact(downstreamIssuesSecurityImpact);
       commitProcessor.setCheckIncompleteCommits(checkIncompleteCommits);
       commitProcessor.setDryRun(dryRun);
-      commitProcessor.setSkipCommitTest(skipCommitTest);
-      commitProcessor.setCommitTestsDir(commitTestsDir);
+      commitProcessor.setCheckCommand(checkCommand);
+      commitProcessor.setCheckTestsCommand(checkTestsCommand);
+      commitProcessor.setCommitsDir(commitsDir);
 
       //Delete current commits file
       File commitsFile;

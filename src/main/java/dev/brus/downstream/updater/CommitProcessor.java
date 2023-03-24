@@ -32,7 +32,6 @@ import org.apache.commons.io.FileUtils;
 import org.apache.maven.plugin.surefire.log.api.NullConsoleLogger;
 import org.apache.maven.plugins.surefire.report.ReportTestSuite;
 import org.apache.maven.plugins.surefire.report.SurefireReportParser;
-import org.apache.tools.ant.types.Commandline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,6 +69,7 @@ public class CommitProcessor {
 
    private GitRepository gitRepository;
    private ReleaseVersion candidateReleaseVersion;
+   private String targetReleaseFormat;
    private IssueManager upstreamIssueManager;
    private DownstreamIssueManager downstreamIssueManager;
    private UserResolver userResolver;
@@ -84,8 +84,9 @@ public class CommitProcessor {
    private IssueSecurityImpact downstreamIssuesSecurityImpact;
    private boolean checkIncompleteCommits;
    private boolean dryRun;
-   private boolean skipCommitTest;
-   private File commitTestsDir;
+   private String checkCommand;
+   private String checkTestsCommand;
+   private File commitsDir;
 
    public GitRepository getGitRepository() {
       return gitRepository;
@@ -93,6 +94,10 @@ public class CommitProcessor {
 
    public ReleaseVersion getCandidateReleaseVersion() {
       return candidateReleaseVersion;
+   }
+
+   public String getTargetReleaseFormat() {
+      return targetReleaseFormat;
    }
 
    public IssueManager getUpstreamIssueManager() {
@@ -206,38 +211,49 @@ public class CommitProcessor {
       return this;
    }
 
-   public boolean isSkipCommitTest() {
-      return skipCommitTest;
+   public String getCheckCommand() {
+      return checkCommand;
    }
 
-   public CommitProcessor setSkipCommitTest(boolean skipCommitTest) {
-      this.skipCommitTest = skipCommitTest;
+   public CommitProcessor setCheckCommand(String checkCommand) {
+      this.checkCommand = checkCommand;
       return this;
    }
 
-   public File getCommitTestsDir() {
-      return commitTestsDir;
+   public String getCheckTestsCommand() {
+      return checkTestsCommand;
    }
 
-   public CommitProcessor setCommitTestsDir(File commitTestsDir) {
-      this.commitTestsDir = commitTestsDir;
+   public CommitProcessor setCheckTestsCommand(String checkTestsCommand) {
+      this.checkTestsCommand = checkTestsCommand;
+      return this;
+   }
+
+   public File getCommitsDir() {
+      return commitsDir;
+   }
+
+   public CommitProcessor setCommitsDir(File commitsDir) {
+      this.commitsDir = commitsDir;
       return this;
    }
 
    public CommitProcessor(
       ReleaseVersion candidateReleaseVersion,
+      String targetReleaseFormat,
       GitRepository gitRepository,
       IssueManager upstreamIssueManager,
       DownstreamIssueManager downstreamIssueManager,
       UserResolver userResolver) {
 
       this.candidateReleaseVersion = candidateReleaseVersion;
+      this.targetReleaseFormat = targetReleaseFormat;
       this.gitRepository = gitRepository;
       this.upstreamIssueManager = upstreamIssueManager;
       this.downstreamIssueManager = downstreamIssueManager;
       this.userResolver = userResolver;
 
-      this.cherryPickedCommits = Collections.emptyMap();
+      this.cherryPickedCommits = new HashMap<>();
       this.confirmedCommits = Collections.emptyMap();
       this.confirmedDownstreamIssues = Collections.emptyMap();
       this.excludedDownstreamIssues = Collections.emptyMap();
@@ -248,8 +264,9 @@ public class CommitProcessor {
       this.downstreamIssuesSecurityImpact = IssueSecurityImpact.NONE;
       this.checkIncompleteCommits = true;
       this.dryRun = false;
-      this.skipCommitTest = false;
-      this.commitTestsDir = new File("commit-tests");
+      this.checkTestsCommand = null;
+      this.checkCommand = null;
+      this.commitsDir = new File("commits");
    }
 
    public Commit process(GitCommit upstreamCommit) throws Exception {
@@ -261,13 +278,11 @@ public class CommitProcessor {
          candidateReleaseVersion = cherryPickedCommit.getValue();
       }
 
-      String release = "AMQ " + candidateReleaseVersion.getMajor() +
-         "." + candidateReleaseVersion.getMinor() +
-         "." + candidateReleaseVersion.getPatch();
-      if (candidateReleaseVersion.getQualifier() != null) {
-         release += "." + candidateReleaseVersion.getQualifier();
-      }
-      release += ".GA";
+      String release = String.format(targetReleaseFormat,
+         candidateReleaseVersion.getMajor(),
+         candidateReleaseVersion.getMinor(),
+         candidateReleaseVersion.getPatch(),
+         candidateReleaseVersion.getQualifier());
       String candidate = candidateReleaseVersion.getCandidate();
 
 
@@ -629,79 +644,32 @@ public class CommitProcessor {
       return executed;
    }
 
-   private boolean testCommit(Commit commit) throws Exception {
-      //Detect the repo type
-      String repoType = null;
-      File makefileFile = new File(gitRepository.getDirectory().getParentFile(), "Makefile");
-      if (makefileFile.exists()) {
-         repoType = REPO_TYPE_MAKE;
-      } else {
-         File pomXmlFile = new File(gitRepository.getDirectory().getParentFile(), "pom.xml");
-         if (pomXmlFile.exists()) {
-            repoType = REPO_TYPE_MAVEN;
-         } else {
-            throw new UnsupportedOperationException("Commit test supported only for the repo types: go and maven");
-         }
+   private boolean checkCommit(Commit commit) throws Exception {
+      String checkCommand = this.checkCommand;
+      if (commit.getTests().size() > 0 && checkTestsCommand != null) {
+         checkCommand = String.format(checkTestsCommand, String.join(",", commit.getTests()));
       }
 
-      File commitTestDir = new File(commitTestsDir, commit.getUpstreamCommit());
-      commitTestDir.mkdirs();
-
-      File outputCommitTestFile = new File(commitTestDir, "output.log");
-      try (BufferedWriter outputCommitTestWriter = new BufferedWriter(new FileWriter(outputCommitTestFile))) {
-         if (REPO_TYPE_MAKE.equals(repoType)) {
-            return testMakeCommit(commit, commitTestDir, outputCommitTestWriter);
-         } else if (REPO_TYPE_MAVEN.equals(repoType)) {
-            return testMavenCommit(commit, commitTestDir, outputCommitTestWriter);
-         } else {
-            throw new IllegalStateException("Commit test unsupported for the repo type: " + repoType);
-         }
-      }
-   }
-
-   private boolean testMakeCommit(Commit commit, File commitTestDir, BufferedWriter outputCommitTestWriter) throws Exception {
-      String[] makeCommitTestCommand = Commandline.translateCommandline("make test");
-
-      int exitCode = CommandExecutor.execute("make test",
-         gitRepository.getDirectory().getParentFile(), outputCommitTestWriter);
-
-      if (exitCode != 0) {
-         return false;
-      }
-
-      return true;
-   }
-
-   private boolean testMavenCommit(Commit commit, File commitTestDir, BufferedWriter outputCommitTestWriter) throws Exception {
-      String mavenCommitTestCommand = buildMavenCommitTestCommand(commit);
-
-      int exitCode = CommandExecutor.execute(mavenCommitTestCommand,
-         gitRepository.getDirectory().getParentFile(), outputCommitTestWriter);
-
-      if (exitCode != 0) {
-         return false;
-      }
-
-      //Check tests
-      if (commit.getTests().size() > 0) {
-         //Find surefireReportsDirectories
-         List<File> surefireReportsDirectories = new ArrayList<>();
-         try (Stream<Path> walk = Files.walk(Paths.get(gitRepository.getDirectory().getParent()))) {
-            walk.filter(path -> Files.isDirectory(path) && path.endsWith("surefire-reports"))
-               .forEach(path -> surefireReportsDirectories.add(path.toFile()));
+      if (checkCommand != null) {
+         File commitDir = new File(commitsDir, commit.getUpstreamCommit());
+         if (!commitDir.exists()) {
+            if (!commitDir.mkdirs()) {
+               throw new RuntimeException("Error creating commitDir: " + commitDir);
+            }
          }
 
-         //Copy surefireReports
-         for (File surefireReportsDirectory : surefireReportsDirectories) {
-            FileUtils.copyDirectory(surefireReportsDirectory, commitTestDir);
-         }
+         File outputCommitTestFile = new File(commitDir, "check.log");
+         try (BufferedWriter outputCommitTestWriter = new BufferedWriter(new FileWriter(outputCommitTestFile))) {
+            int exitCode = CommandExecutor.tryExecute(checkCommand,
+               gitRepository.getDirectory(), outputCommitTestWriter);
 
-         //Analyze surefireReports
-         SurefireReportParser surefireReportParser = new SurefireReportParser(surefireReportsDirectories, java.util.Locale.ENGLISH, new NullConsoleLogger());
-         List<ReportTestSuite> reportTestSuites = surefireReportParser.parseXMLReportFiles();
-         for (ReportTestSuite reportTestSuite : reportTestSuites) {
-            if (reportTestSuite.getNumberOfFailures() > 0) {
+            if (exitCode != 0) {
                return false;
+            }
+
+            File pomXmlFile = new File(gitRepository.getDirectory(), "pom.xml");
+            if (pomXmlFile.exists() && commit.getTests().size() > 0) {
+               return checkSurefireReports(commitDir);
             }
          }
       }
@@ -709,37 +677,41 @@ public class CommitProcessor {
       return true;
    }
 
-   private String buildMavenCommitTestCommand(Commit commit) {
-      StringBuilder testCommand = new StringBuilder();
-
-      testCommand.append("mvn");
-      testCommand.append(" --show-version");
-
-      if (commit.getTests().size() > 0) {
-         testCommand.append(" --activate-profiles=dev,tests,redhat-indy");
-         testCommand.append(" --define=failIfNoTests=false");
-         testCommand.append(" --define=test=" + String.join(",", commit.getTests()));
-      } else {
-         testCommand.append(" --activate-profiles=dev,redhat-indy");
-         testCommand.append(" --define=skipTests=true");
+   private boolean checkSurefireReports(File commitTestDir) throws Exception {
+      //Find surefireReportsDirectories
+      List<File> surefireReportsDirectories = new ArrayList<>();
+      try (Stream<Path> walk = Files.walk(Paths.get(gitRepository.getDirectory().getAbsolutePath()))) {
+         walk.filter(path -> Files.isDirectory(path) && path.endsWith("surefire-reports"))
+            .forEach(path -> surefireReportsDirectories.add(path.toFile()));
       }
 
-      testCommand.append(" clean");
-      testCommand.append(" package");
+      //Copy surefireReports
+      for (File surefireReportsDirectory : surefireReportsDirectories) {
+         FileUtils.copyDirectory(surefireReportsDirectory, commitTestDir);
+      }
 
-      return testCommand.toString();
+      //Analyze surefireReports
+      SurefireReportParser surefireReportParser = new SurefireReportParser(surefireReportsDirectories, java.util.Locale.ENGLISH, new NullConsoleLogger());
+      List<ReportTestSuite> reportTestSuites = surefireReportParser.parseXMLReportFiles();
+      for (ReportTestSuite reportTestSuite : reportTestSuites) {
+         if (reportTestSuite.getNumberOfFailures() > 0) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    private void cherryPickUpstreamCommit(Commit commit, String key, String value, CommitTask commitTask) throws Exception {
       GitCommit upstreamCommit = gitRepository.resolveCommit(key);
       if (gitRepository.cherryPick(upstreamCommit)) {
-         if (!skipCommitTest && !testCommit(commit)) {
-            logger.warn("Error testing commit: " + commit.getUpstreamCommit());
+         if (!checkCommit(commit)) {
+            logger.warn("Error checking commit: " + commit.getUpstreamCommit());
 
             gitRepository.resetHard();
 
             commitTask.setState(CommitTask.State.FAILED);
-            commitTask.setResult("TEST_COMMIT_FAILED");
+            commitTask.setResult("CHECK_COMMIT_FAILED");
          } else {
             String commitMessage = upstreamCommit.getFullMessage() + "\n" +
                "(cherry picked from commit " + upstreamCommit.getName() + ")";

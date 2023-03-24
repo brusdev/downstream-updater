@@ -15,7 +15,7 @@ public class CommandLineTest {
 
    @Test
    public void testTestCommandWithQuotedArgs() {
-      String testCommand = "mvn --show-version --activate-profiles=dev,tests,redhat-indy --define=\"failIfNoTests=false\" --define=test=\"Test0, Test1\" clean package";
+      String testCommand = "mvn --show-version --activate-profiles=dev,tests,redhat-indy --define=\"failIfNoTests=false\" --define=test='Test0, Test1' clean package";
       String[] testCommandTokens = Commandline.translateCommandline(testCommand);
       Assert.assertEquals(7, testCommandTokens.length);
    }
