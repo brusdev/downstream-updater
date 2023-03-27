@@ -39,4 +39,10 @@ public class ReleaseVersionTest {
    public void testCompareWithoutCandidateTo() {
       Assert.assertEquals(0, ReleaseVersion.fromString("7.10.0.CR1").compareWithoutCandidateTo(ReleaseVersion.fromString("7.10.0.CR1")));
    }
+
+   @Test
+   public void testGetQualifierPrefix() {
+      Assert.assertEquals("OPR.", ReleaseVersion.fromString("7.10.0.OPR.1.CR1").getQualifierPrefix());
+      Assert.assertNull(ReleaseVersion.fromString("7.10.0.CR1").getQualifierPrefix());
+   }
 }

@@ -238,8 +238,8 @@ public class CommitProcessorTest {
             setTasks(Collections.singletonList(
             new CommitTask().
                setType(CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT).
-               setKey(commit.getName()).
-               setValue(commit.getShortMessage().startsWith(NO_ISSUE_KEY) ? null : DOWNSTREAM_ISSUE_KEY_0)));
+               setArgs(commit.getShortMessage().startsWith(NO_ISSUE_KEY) ?
+               Collections.emptyMap() : Map.of("downstreamIssues", DOWNSTREAM_ISSUE_KEY_0))));
          confirmedCommits.put(commit.getName(), confirmedCommit);
       }
 
@@ -262,6 +262,7 @@ public class CommitProcessorTest {
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
       Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
       Mockito.when(downstreamIssueManager.getIssueStateDone()).thenReturn("Done");
+      Mockito.when(downstreamIssueManager.getIssueLabelUpstreamTestCoverage()).thenReturn("upstream-test-coverage");
       Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
 
       File commitsDir = testFolder.newFolder("commits");

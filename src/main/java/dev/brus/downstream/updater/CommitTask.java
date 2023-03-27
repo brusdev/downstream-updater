@@ -17,28 +17,38 @@
 
 package dev.brus.downstream.updater;
 
+import java.util.Collections;
+import java.util.Map;
+
 public class CommitTask {
    public enum Type {
       SET_DOWNSTREAM_ISSUE_TARGET_RELEASE,
-      ADD_DOWNSTREAM_ISSUE_LABEL,
-      ADD_DOWNSTREAM_ISSUE_UPSTREAM_ISSUE,
+      ADD_LABEL_TO_DOWNSTREAM_ISSUE,
+      ADD_UPSTREAM_ISSUE_TO_DOWNSTREAM_ISSUE,
       TRANSITION_DOWNSTREAM_ISSUE,
       CHERRY_PICK_UPSTREAM_COMMIT,
       CLONE_DOWNSTREAM_ISSUE,
       CLONE_UPSTREAM_ISSUE,
+      CLONE_UPSTREAM_ISSUE_WITH_NO_BACKPORT,
    }
 
    public enum State {
       NEW,
       EXECUTED,
       FAILED,
-      UNCONFIRMED,
+   }
+
+   public enum Action {
+      STEP,
+      FORCE,
+      SKIP,
    }
 
    private CommitTask.Type type;
    private CommitTask.State state;
-   private String key;
-   private String value;
+   private CommitTask.Action action;
+   private Map<String, String> args = Collections.emptyMap();
+   private String command;
    private String result;
 
 
@@ -51,21 +61,12 @@ public class CommitTask {
       return this;
    }
 
-   public String getValue() {
-      return value;
+   public Map<String, String> getArgs() {
+      return args;
    }
 
-   public CommitTask setValue(String value) {
-      this.value = value;
-      return this;
-   }
-
-   public String getKey() {
-      return key;
-   }
-
-   public CommitTask setKey(String key) {
-      this.key = key;
+   public CommitTask setArgs(Map<String, String> args) {
+      this.args = args;
       return this;
    }
 
@@ -75,6 +76,24 @@ public class CommitTask {
 
    public CommitTask setState(CommitTask.State state) {
       this.state = state;
+      return this;
+   }
+
+   public Action getAction() {
+      return action;
+   }
+
+   public CommitTask setAction(Action action) {
+      this.action = action;
+      return this;
+   }
+
+   public String getCommand() {
+      return command;
+   }
+
+   public CommitTask setCommand(String command) {
+      this.command = command;
       return this;
    }
 

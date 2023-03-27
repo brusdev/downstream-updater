@@ -25,6 +25,7 @@ import org.apache.commons.lang3.StringUtils;
 
 public class ReleaseVersion implements Comparable<ReleaseVersion> {
    private final static Pattern versionPattern = Pattern.compile("([0-9]+)\\.([0-9]+)\\.([0-9]+)(\\.(.*))*\\.(CR[0-9]+|GA)");
+   private final static Pattern qualifierPattern = Pattern.compile("(.*)([0-9]+)");
 
    private final int major;
    private final int minor;
@@ -72,6 +73,20 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
       this.patch = patch;
       this.qualifier = qualifier;
       this.candidate = candidate;
+   }
+
+   public String getQualifierPrefix() {
+      if (qualifier == null) {
+         return null;
+      }
+
+      Matcher qualifierMatcher = qualifierPattern.matcher(qualifier);
+
+      if (!qualifierMatcher.find()) {
+         return null;
+      }
+
+      return qualifierMatcher.group(1);
    }
 
    public static int compare(String releaseX, String releaseY) {
