@@ -29,7 +29,7 @@ public class CommitTask {
       CHERRY_PICK_UPSTREAM_COMMIT,
       CLONE_DOWNSTREAM_ISSUE,
       CLONE_UPSTREAM_ISSUE,
-      CLONE_UPSTREAM_ISSUE_WITH_NO_BACKPORT,
+      EXCLUDE_UPSTREAM_ISSUE,
    }
 
    public enum State {

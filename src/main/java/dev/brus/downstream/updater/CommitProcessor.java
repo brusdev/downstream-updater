@@ -366,9 +366,19 @@ public class CommitProcessor {
          && !upstreamRevertingChain.stream().anyMatch(revertingCommit -> cherryPickedCommits.containsKey(revertingCommit))) {
          logger.warn("SKIPPED because the commits of the revering chain are even and none is cherry-picked: " + upstreamCommit.getName());
          if (upstreamRevertingChain.indexOf(upstreamCommit.getName()) == 0) {
-            commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_REVERTING_COMMIT");
+            if (processCommitTask(commit, release, candidate, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
+               CommitTask.Action.FORCE, Collections.emptyMap(), confirmedTasks)) {
+               commit.setState(Commit.State.DONE);
+            } else {
+               commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_REVERTING_COMMIT");
+            }
          } else {
-            commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_REVERTED_COMMIT");
+            if (processCommitTask(commit, release, candidate, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
+               CommitTask.Action.FORCE, Collections.emptyMap(), confirmedTasks)) {
+               commit.setState(Commit.State.DONE);
+            } else {
+               commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_REVERTED_COMMIT");
+            }
          }
          return commit;
       }
@@ -484,9 +494,14 @@ public class CommitProcessor {
                      // The commits related to downstream issues fixed in another release requires
                      // a downstream release issue if they are cherry-picked to a branch after the first release
                      if (cloneDownstreamIssues(commit, release, candidate, selectedDownstreamIssues, confirmedTasks)) {
-                        commit.setState(Commit.State.DONE);
+                        commit.setState(Commit.State.TODO);
                      } else {
-                        commit.setState(Commit.State.NEW).setReason("DOWNSTREAM_ISSUES_SUFFICIENT_BUT_NONE_WITH_REQUIRED_TARGET_RELEASE");
+                        if (processCommitTask(commit, release, candidate, CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE,
+                           CommitTask.Action.SKIP, Map.of("issueKey",upstreamIssue.getKey()), confirmedTasks)) {
+                           commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
+                        } else {
+                           commit.setState(Commit.State.NEW).setReason("DOWNSTREAM_ISSUES_SUFFICIENT_BUT_NONE_WITH_REQUIRED_TARGET_RELEASE");
+                        }
                      }
                   } else {
                      // The commits related to a downstream issue fixed in another release don't require
@@ -532,18 +547,23 @@ public class CommitProcessor {
                      CommitTask.Action.FORCE, Collections.emptyMap(), confirmedTasks)) {
                      commit.setState(Commit.State.DONE);
                   } else {
-                     String nextMinorTargetRelease = String.format(targetReleaseFormat, candidateReleaseVersion.getMajor(),
-                        candidateReleaseVersion.getMinor() + 1, 0, candidateReleaseVersion.getQualifierPrefix() + "1");
-                     if (processCommitTask(commit, release, candidate, CommitTask.Type.CLONE_UPSTREAM_ISSUE_WITH_NO_BACKPORT,
-                        CommitTask.Action.SKIP, Map.of("issueKey",upstreamIssue.getKey(), "targetRelease", nextMinorTargetRelease), confirmedTasks)) {
-                        commit.setState(Commit.State.DONE);
+                     if (processCommitTask(commit, release, candidate, CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE,
+                        CommitTask.Action.SKIP, Map.of("issueKey",upstreamIssue.getKey()), confirmedTasks)) {
+                        commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
                      } else {
+                        logger.info("SKIPPED because the the upstream issue is sufficient but there are no downstream issues");
                         commit.setState(Commit.State.NEW).setReason("UPSTREAM_ISSUE_SUFFICIENT_BUT_NO_DOWNSTREAM_ISSUES");
                      }
                   }
                }
             } else {
-               commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_NOT_SUFFICIENT");
+               if (processCommitTask(commit, release, candidate, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
+                  CommitTask.Action.FORCE, Collections.emptyMap(), confirmedTasks)) {
+                  commit.setState(Commit.State.DONE);
+               } else {
+                  logger.info("SKIPPED because the the upstream issue is not sufficient");
+                  commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_NOT_SUFFICIENT");
+               }
             }
          }
       }
@@ -861,27 +881,17 @@ public class CommitProcessor {
 
          commitTask.setResult(clonedIssue.getKey());
          commitTask.setState(CommitTask.State.EXECUTED);
-      } else if (type == CommitTask.Type.CLONE_UPSTREAM_ISSUE ||
-         type == CommitTask.Type.CLONE_UPSTREAM_ISSUE_WITH_NO_BACKPORT) {
+      } else if (type == CommitTask.Type.CLONE_UPSTREAM_ISSUE) {
          String issueKey = args.get("issueKey");
          Issue upstreamIssue = upstreamIssueManager.getIssue(issueKey);
          List<String> labels = new ArrayList<>();
-         if (type == CommitTask.Type.CLONE_UPSTREAM_ISSUE_WITH_NO_BACKPORT) {
-            labels.add("CR1");
-            labels.add(downstreamIssueManager.getIssueLabelNoBackportNeeded());
-         } else {
-            labels.add(candidate);
-         }
+         labels.add(candidate);
 
          User assignee = userResolver.getUserFromUsername(commit.getAssignee());
 
          String downstreamIssueTargetRelease = args.get("targetRelease");
          if (downstreamIssueTargetRelease == null) {
             downstreamIssueTargetRelease = release;
-         }
-
-         if (type == CommitTask.Type.CLONE_UPSTREAM_ISSUE_WITH_NO_BACKPORT) {
-            labels.add(downstreamIssueManager.getIssueLabelNoBackportNeeded());
          }
 
          Issue downstreamIssue;
@@ -906,6 +916,9 @@ public class CommitProcessor {
 
          commitTask.setResult(downstreamIssue.getKey());
          commitTask.setState(CommitTask.State.EXECUTED);
+      } else if (type == CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE) {
+         commitTask.setState(CommitTask.State.FAILED);
+         commitTask.setResult("OPERATION_NOT_SUPPORTED");
       } else {
          throw new IllegalStateException("Commit task type not supported: " + type);
       }
