@@ -1,4 +1,4 @@
-package dev.brus.midstream.updater.issues;
+package dev.brus.midstream.updater.issue;
 
 import java.io.InputStreamReader;
 
