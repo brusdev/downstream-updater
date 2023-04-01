@@ -13,13 +13,9 @@ import dev.brus.downstream.updater.issue.IssueManagerFactory;
 import dev.brus.downstream.updater.issue.IssueSecurityImpact;
 import dev.brus.downstream.updater.user.User;
 import dev.brus.downstream.updater.user.UserResolver;
+import dev.brus.downstream.updater.util.CommandLine;
+import dev.brus.downstream.updater.util.CommandLineParser;
 import dev.brus.downstream.updater.util.ReleaseVersion;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.io.FileUtils;
@@ -84,43 +80,42 @@ public class App {
 
    public static void main(String[] args) throws Exception {
       // Parse arguments
-      Options options = new Options();
-      options.addOption(createOption("a", ASSIGNEE_OPTION, true, true, false, "the default assignee, i.e. dbruscin"));
-      options.addOption(createOption(null, RELEASE_OPTION, true, true, false, "the release, i.e. 7.11.0.CR1"));
-      options.addOption(createOption(null, TARGET_RELEASE_FORMAT_OPTION, true, true, false, "the target release format, i.e. AMQ %d.%d.%d.GA"));
-      options.addOption(createOption(null, UPSTREAM_REPOSITORY_OPTION, true, true, false, "the upstream repository to cherry-pick from, i.e. https://github.com/apache/activemq-artemis.git"));
-      options.addOption(createOption(null, UPSTREAM_BRANCH_OPTION, true, true, false, "the upstream branch to cherry-pick from, i.e. main"));
-      options.addOption(createOption(null, DOWNSTREAM_REPOSITORY_OPTION, true, true, false, "the downstream repository to cherry-pick to, i.e. https://github.com/rh-messaging/activemq-artemis.git"));
-      options.addOption(createOption(null, DOWNSTREAM_BRANCH_OPTION, true, true, false, "the downstream branch to cherry-pick to, i.e. 2.16.0.jbossorg-x"));
+      CommandLineParser parser = new CommandLineParser();
+      parser.addOption("a", ASSIGNEE_OPTION, true, true, false, "the default assignee, i.e. dbruscin");
+      parser.addOption(null, RELEASE_OPTION, true, true, false, "the release, i.e. 7.11.0.CR1");
+      parser.addOption(null, TARGET_RELEASE_FORMAT_OPTION, true, true, false, "the target release format, i.e. AMQ %d.%d.%d.GA");
+      parser.addOption(null, UPSTREAM_REPOSITORY_OPTION, true, true, false, "the upstream repository to cherry-pick from, i.e. https://github.com/apache/activemq-artemis.git");
+      parser.addOption(null, UPSTREAM_BRANCH_OPTION, true, true, false, "the upstream branch to cherry-pick from, i.e. main");
+      parser.addOption(null, DOWNSTREAM_REPOSITORY_OPTION, true, true, false, "the downstream repository to cherry-pick to, i.e. https://github.com/rh-messaging/activemq-artemis.git");
+      parser.addOption(null, DOWNSTREAM_BRANCH_OPTION, true, true, false, "the downstream branch to cherry-pick to, i.e. 2.16.0.jbossorg-x");
 
-      options.addOption(createOption(null, COMMITS_OPTION, false, true, false, "the commits"));
-      options.addOption(createOption(null, CONFIRMED_COMMITS_OPTION, false, true, false, "the confirmed commits"));
-      options.addOption(createOption(null, PAYLOAD_OPTION, false, true, false, "the commits"));
-      options.addOption(createOption(null, CONFIRMED_DOWNSTREAM_ISSUES_OPTION, false, true, true, "the confirmed downstream issues, commits related to other downstream issues with a different target release will be skipped"));
-      options.addOption(createOption(null, EXCLUDED_DOWNSTREAM_ISSUES_OPTION, false, true, true, "the excluded downstream issues, commits related to other downstream issues with a different target release will be skipped"));
-      options.addOption(createOption(null, CONFIRMED_UPSTREAM_ISSUES_OPTION, false, true, true, "the confirmed upstream issues, commits related to other upstream issues without a downstream issue will be skipped"));
-      options.addOption(createOption(null, EXCLUDED_UPSTREAM_ISSUES_OPTION, false, true, true, "the excluded upstream issues, commits related to other upstream issues without a downstream issue will be skipped"));
+      parser.addOption(null, COMMITS_OPTION, false, true, false, "the commits");
+      parser.addOption(null, CONFIRMED_COMMITS_OPTION, false, true, false, "the confirmed commits");
+      parser.addOption(null, PAYLOAD_OPTION, false, true, false, "the commits");
+      parser.addOption(null, CONFIRMED_DOWNSTREAM_ISSUES_OPTION, false, true, true, "the confirmed downstream issues, commits related to other downstream issues with a different target release will be skipped");
+      parser.addOption(null, EXCLUDED_DOWNSTREAM_ISSUES_OPTION, false, true, true, "the excluded downstream issues, commits related to other downstream issues with a different target release will be skipped");
+      parser.addOption(null, CONFIRMED_UPSTREAM_ISSUES_OPTION, false, true, true, "the confirmed upstream issues, commits related to other upstream issues without a downstream issue will be skipped");
+      parser.addOption(null, EXCLUDED_UPSTREAM_ISSUES_OPTION, false, true, true, "the excluded upstream issues, commits related to other upstream issues without a downstream issue will be skipped");
 
-      options.addOption(createOption(null, UPSTREAM_ISSUES_SERVER_URL_OPTION, false, true, false, "the server URL to access upstream issues, i.e. https://issues.apache.org/jira/rest/api/2"));
-      options.addOption(createOption(null, UPSTREAM_ISSUES_AUTH_STRING_OPTION, false, true, false, "the auth string to access upstream issues, i.e. \"Bearer ...\""));
-      options.addOption(createOption(null, UPSTREAM_ISSUES_PROJECT_KEY_OPTION, false, true, false, "the project key to access upstream issues, i.e. ARTEMIS"));
-      options.addOption(createOption(null, DOWNSTREAM_ISSUES_SERVER_URL_OPTION, false, true, false, "the server URL to access downstream issues, i.e. https://issues.redhat.com/rest/api/2"));
-      options.addOption(createOption(null, DOWNSTREAM_ISSUES_AUTH_STRING_OPTION, false, true, false, "the auth string to access downstream issues, i.e. \"Bearer ...\""));
-      options.addOption(createOption(null, DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION, false, true, false, "the project key to access downstream issues, i.e. ENTMQBR"));
-      options.addOption(createOption(null, DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY, false, true, false, "the customer priority to filter downstream issues, i.e. HIGH"));
-      options.addOption(createOption(null, DOWNSTREAM_ISSUES_SECURITY_IMPACT, false, true, false, "the security impact to filter downstream issues, i.e. IMPORTANT"));
+      parser.addOption(null, UPSTREAM_ISSUES_SERVER_URL_OPTION, false, true, false, "the server URL to access upstream issues, i.e. https://issues.apache.org/jira/rest/api/2");
+      parser.addOption(null, UPSTREAM_ISSUES_AUTH_STRING_OPTION, false, true, false, "the auth string to access upstream issues, i.e. \"Bearer ...\"");
+      parser.addOption(null, UPSTREAM_ISSUES_PROJECT_KEY_OPTION, false, true, false, "the project key to access upstream issues, i.e. ARTEMIS");
+      parser.addOption(null, DOWNSTREAM_ISSUES_SERVER_URL_OPTION, false, true, false, "the server URL to access downstream issues, i.e. https://issues.redhat.com/rest/api/2");
+      parser.addOption(null, DOWNSTREAM_ISSUES_AUTH_STRING_OPTION, false, true, false, "the auth string to access downstream issues, i.e. \"Bearer ...\"");
+      parser.addOption(null, DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION, false, true, false, "the project key to access downstream issues, i.e. ENTMQBR");
+      parser.addOption(null, DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY, false, true, false, "the customer priority to filter downstream issues, i.e. HIGH");
+      parser.addOption(null, DOWNSTREAM_ISSUES_SECURITY_IMPACT, false, true, false, "the security impact to filter downstream issues, i.e. IMPORTANT");
 
-      options.addOption(createOption(null, CHECK_INCOMPLETE_COMMITS_OPTION, false, false, true, "check tasks of cherry-picked commits"));
-      options.addOption(createOption(null, CHECK_COMMAND_OPTION, false, true, true, "command to check cherry-picked commits"));
-      options.addOption(createOption(null, CHECK_TESTS_COMMAND_OPTION, false, true, true, "command to test cherry-picked commits with tests"));
-      options.addOption(createOption(null, DRY_RUN_OPTION, false, false, false, "dry run"));
+      parser.addOption(null, CHECK_INCOMPLETE_COMMITS_OPTION, false, false, true, "check tasks of cherry-picked commits");
+      parser.addOption(null, CHECK_COMMAND_OPTION, false, true, true, "command to check cherry-picked commits");
+      parser.addOption(null, CHECK_TESTS_COMMAND_OPTION, false, true, true, "command to test cherry-picked commits with tests");
+      parser.addOption(null, DRY_RUN_OPTION, false, false, false, "dry run");
 
       CommandLine line;
-      CommandLineParser parser = new DefaultParser();
 
       try {
-         line = parser.parse(options, args);
-      } catch (ParseException e) {
+         line = parser.parse(args);
+      } catch (Exception e) {
          throw new RuntimeException("Error on parsing arguments", e);
       }
 
@@ -141,73 +136,37 @@ public class App {
       String downstreamIssuesAuthString = line.getOptionValue(DOWNSTREAM_ISSUES_AUTH_STRING_OPTION);
       String downstreamIssuesProjectKey = line.getOptionValue(DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION);
 
-      IssueCustomerPriority downstreamIssuesCustomerPriority = IssueCustomerPriority.NONE;
-      if (line.hasOption(DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY)) {
-         downstreamIssuesCustomerPriority = IssueCustomerPriority.fromName(
-            line.getOptionValue(DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY));
-      }
+      IssueCustomerPriority downstreamIssuesCustomerPriority = IssueCustomerPriority.fromName(
+         line.getOptionValue(DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY, IssueCustomerPriority.NONE.name()));
 
-      IssueSecurityImpact downstreamIssuesSecurityImpact = IssueSecurityImpact.NONE;
-      if (line.hasOption(DOWNSTREAM_ISSUES_SECURITY_IMPACT)) {
-         downstreamIssuesSecurityImpact = IssueSecurityImpact.fromName(
-            line.getOptionValue(DOWNSTREAM_ISSUES_SECURITY_IMPACT));
-      }
+      IssueSecurityImpact downstreamIssuesSecurityImpact = IssueSecurityImpact.fromName(
+         line.getOptionValue(DOWNSTREAM_ISSUES_SECURITY_IMPACT, IssueSecurityImpact.NONE.name()));
 
       String upstreamIssuesServerURL = line.getOptionValue(UPSTREAM_ISSUES_SERVER_URL_OPTION);
       String upstreamIssuesAuthString = line.getOptionValue(UPSTREAM_ISSUES_AUTH_STRING_OPTION);
       String upstreamIssuesProjectKey = line.getOptionValue(UPSTREAM_ISSUES_PROJECT_KEY_OPTION);
 
-      String commitsFilename = null;
-      if (line.hasOption(COMMITS_OPTION)) {
-         commitsFilename = line.getOptionValue(COMMITS_OPTION);
-      }
+      String commitsFilename = line.getOptionValue(COMMITS_OPTION, null);
 
-      String confirmedCommitsFilename = null;
-      if (line.hasOption(CONFIRMED_COMMITS_OPTION)) {
-         confirmedCommitsFilename = line.getOptionValue(CONFIRMED_COMMITS_OPTION);
-      }
+      String confirmedCommitsFilename = line.getOptionValue(CONFIRMED_COMMITS_OPTION, "confirmed-commits.json");
 
-      String payloadFilename = null;
-      if (line.hasOption(PAYLOAD_OPTION)) {
-         payloadFilename = line.getOptionValue(PAYLOAD_OPTION);
-      }
+      String payloadFilename = line.getOptionValue(PAYLOAD_OPTION);
 
-      String confirmedDownstreamIssueKeys = null;
-      if (line.hasOption(CONFIRMED_DOWNSTREAM_ISSUES_OPTION)) {
-         confirmedDownstreamIssueKeys = line.getOptionValue(CONFIRMED_DOWNSTREAM_ISSUES_OPTION, "");
-      }
+      String confirmedDownstreamIssueKeys = line.getOptionValue(CONFIRMED_DOWNSTREAM_ISSUES_OPTION, "");
 
-      String excludedDownstreamIssueKeys = null;
-      if (line.hasOption(EXCLUDED_DOWNSTREAM_ISSUES_OPTION)) {
-         excludedDownstreamIssueKeys = line.getOptionValue(EXCLUDED_DOWNSTREAM_ISSUES_OPTION, "");
-      }
+      String excludedDownstreamIssueKeys = line.getOptionValue(EXCLUDED_DOWNSTREAM_ISSUES_OPTION, "");
 
-      String confirmedUpstreamIssueKeys = null;
-      if (line.hasOption(CONFIRMED_UPSTREAM_ISSUES_OPTION)) {
-         confirmedUpstreamIssueKeys = line.getOptionValue(CONFIRMED_UPSTREAM_ISSUES_OPTION, "");
-      }
+      String confirmedUpstreamIssueKeys = line.getOptionValue(CONFIRMED_UPSTREAM_ISSUES_OPTION, "");
 
-      String excludedUpstreamIssueKeys = null;
-      if (line.hasOption(EXCLUDED_UPSTREAM_ISSUES_OPTION)) {
-         excludedUpstreamIssueKeys = line.getOptionValue(EXCLUDED_UPSTREAM_ISSUES_OPTION, "");
-      }
+      String excludedUpstreamIssueKeys = line.getOptionValue(EXCLUDED_UPSTREAM_ISSUES_OPTION, "");
 
-      boolean checkIncompleteCommits = true;
-      if (line.hasOption(CHECK_INCOMPLETE_COMMITS_OPTION)) {
-         checkIncompleteCommits = Boolean.parseBoolean(line.getOptionValue(CHECK_INCOMPLETE_COMMITS_OPTION, "true"));
-      }
+      boolean checkIncompleteCommits = Boolean.parseBoolean(line.getOptionValue(CHECK_INCOMPLETE_COMMITS_OPTION, "true"));
 
       boolean dryRun = line.hasOption(DRY_RUN_OPTION);
 
-      String checkCommand = null;
-      if (line.hasOption(CHECK_COMMAND_OPTION)) {
-         checkCommand = line.getOptionValue(CHECK_COMMAND_OPTION, null);
-      }
+      String checkCommand = line.getOptionValue(CHECK_COMMAND_OPTION);
 
-      String checkTestsCommand = null;
-      if (line.hasOption(CHECK_TESTS_COMMAND_OPTION)) {
-         checkTestsCommand = line.getOptionValue(CHECK_TESTS_COMMAND_OPTION, null);
-      }
+      String checkTestsCommand = line.getOptionValue(CHECK_TESTS_COMMAND_OPTION);
 
       // Initialize target directory
       File targetDir = new File("target");
@@ -417,8 +376,8 @@ public class App {
 
       // Load confirmed commits
       Map<String, Commit> confirmedCommits = new HashMap<>();
-      if (confirmedCommitsFilename != null) {
-         File confirmedCommitsFile = new File(confirmedCommitsFilename);
+      File confirmedCommitsFile = new File(confirmedCommitsFilename);
+      if (confirmedCommitsFile.exists()) {
          Commit[] confirmedCommitsArray = gson.fromJson(FileUtils.readFileToString(
             confirmedCommitsFile, Charset.defaultCharset()), Commit[].class);
          for (Commit confirmedCommit : confirmedCommitsArray) {
@@ -565,14 +524,6 @@ public class App {
          }
       }
       return issues;
-   }
-
-   private static Option createOption(String opt, String longOpt, boolean required, boolean hasArg, boolean hasOptionalArg, String description) {
-      Option option = new Option(opt, longOpt, hasArg, description);
-      option.setRequired(required);
-      option.setOptionalArg(hasOptionalArg);
-
-      return option;
    }
 
    private static void loadRevertingChain(Map.Entry<GitCommit, String> revertingCommitEntry, int revertingChainCount, Queue<Map.Entry<GitCommit, String>> revertingCommits, List<String> revertingChain) {
