@@ -53,6 +53,9 @@ import org.slf4j.LoggerFactory;
 public class JiraIssueManager implements IssueManager {
    private final static Logger logger = LoggerFactory.getLogger(JiraIssueManager.class);
 
+   public final static String REST_API_PATH = "/rest/api/2";
+   public final static String BROWSE_API_PATH = "/browse";
+
    private final static String ISSUE_TYPE_BUG = "Bug";
 
    private static final String ISSUE_STATE_DONE = "Done";
@@ -97,7 +100,7 @@ public class JiraIssueManager implements IssueManager {
       this.projectKey = projectKey;
       this.issues = new HashMap<>();
 
-      this.issueBaseUrl = serverURL.replace("rest/api/2", "browse");
+      this.issueBaseUrl = serverURL + BROWSE_API_PATH;
       this.issueKeyPattern = Pattern.compile(projectKey + "-[0-9]+");
    }
 
@@ -139,7 +142,7 @@ public class JiraIssueManager implements IssueManager {
       }
       String query = "&jql=" + URLEncoder.encode("project = '" + projectKey + "'" + lastUpdatedQuery, StandardCharsets.UTF_8);
 
-      HttpURLConnection searchConnection = createConnection("/search?maxResults=0" + query);
+      HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search?maxResults=0" + query);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
             JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
@@ -181,7 +184,7 @@ public class JiraIssueManager implements IssueManager {
    private int loadIssues(String query, int start, int maxResults) throws Exception {
       int result = 0;
 
-      HttpURLConnection connection = createConnection("/search?fields=*all&maxResults=" + maxResults + "&startAt=" + start + query);
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/search?fields=*all&maxResults=" + maxResults + "&startAt=" + start + query);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
             JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();

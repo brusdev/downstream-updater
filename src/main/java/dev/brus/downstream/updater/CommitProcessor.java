@@ -24,6 +24,7 @@ import dev.brus.downstream.updater.issue.Issue;
 import dev.brus.downstream.updater.issue.IssueCustomerPriority;
 import dev.brus.downstream.updater.issue.IssueManager;
 import dev.brus.downstream.updater.issue.IssueSecurityImpact;
+import dev.brus.downstream.updater.project.ProjectConfig;
 import dev.brus.downstream.updater.user.User;
 import dev.brus.downstream.updater.user.UserResolver;
 import dev.brus.downstream.updater.util.CommandExecutor;
@@ -36,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -57,16 +59,13 @@ public class CommitProcessor {
 
    private final static Pattern downstreamLinePattern = Pattern.compile("downstream:.*");
 
-   private static final String COMMITTER_NAME = "rh-messaging-ci";
-   private static final String COMMITTER_EMAIL = "messaging-infra@redhat.com";
-
    private static final String FUTURE_GA_RELEASE = "Future GA";
-
-   private static final String REPO_TYPE_MAKE = "MAKE";
-   private static final String REPO_TYPE_MAVEN = "MAVEN";
 
    private static final String TEST_PATH = "src/test/java/";
 
+
+   private ProjectConfig projectConfig;
+   private String projectStreamName;
    private GitRepository gitRepository;
    private ReleaseVersion candidateReleaseVersion;
    private String targetReleaseFormat;
@@ -241,6 +240,8 @@ public class CommitProcessor {
    public CommitProcessor(
       ReleaseVersion candidateReleaseVersion,
       String targetReleaseFormat,
+      ProjectConfig projectConfig,
+      String projectStreamName,
       GitRepository gitRepository,
       IssueManager upstreamIssueManager,
       DownstreamIssueManager downstreamIssueManager,
@@ -248,6 +249,8 @@ public class CommitProcessor {
 
       this.candidateReleaseVersion = candidateReleaseVersion;
       this.targetReleaseFormat = targetReleaseFormat;
+      this.projectConfig = projectConfig;
+      this.projectStreamName = projectStreamName;
       this.gitRepository = gitRepository;
       this.upstreamIssueManager = upstreamIssueManager;
       this.downstreamIssueManager = downstreamIssueManager;
@@ -466,8 +469,12 @@ public class CommitProcessor {
          } else {
             // Commit not cherry-picked
 
-            if (isCommitExcluded(allDownstreamIssues)) {
-               commit.setState(Commit.State.SKIPPED).setReason("DOWNSTREAM_ISSUE_NO-BACKPORT-NEEDED");
+            if (isUpstreamIssueBackportBlocked(allDownstreamIssues)) {
+               logger.info("SKIPPED because the upstream issue is referenced by a downstream issue with NO-BACKPORT-NEEDED");
+               commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_BACKPORT_BLOCKED");
+            } else if (isUpstreamIssueExcluded(upstreamIssue)) {
+               logger.info("SKIPPED because the the upstream issue is excluded");
+               commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
             } else if (isCurrentOrFutureRelease(release, selectedTargetRelease)) {
                // The selected downstream issues have the required target release
 
@@ -537,8 +544,11 @@ public class CommitProcessor {
          } else {
             // Commit not cherry-picked and no downstream issues
 
-            if ((confirmedUpstreamIssues != null && confirmedUpstreamIssues.containsKey(upstreamIssue.getKey())) ||
-               (!isUpstreamIssueExcluded(upstreamIssue) && upstreamIssue.getType().equals(upstreamIssueManager.getIssueTypeBug()))) {
+            if (isUpstreamIssueExcluded(upstreamIssue)) {
+               logger.info("SKIPPED because the the upstream issue is excluded");
+               commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
+            } else if ((confirmedUpstreamIssues != null && confirmedUpstreamIssues.containsKey(upstreamIssue.getKey())) ||
+               (upstreamIssue.getType().equals(upstreamIssueManager.getIssueTypeBug()))) {
                if (processCommitTask(commit, release, candidate, CommitTask.Type.CLONE_UPSTREAM_ISSUE,
                   CommitTask.Action.STEP, Map.of("issueKey",upstreamIssue.getKey()), confirmedTasks)) {
                   commit.setState(Commit.State.DONE);
@@ -611,7 +621,7 @@ public class CommitProcessor {
       return (excludedUpstreamIssues != null && excludedUpstreamIssues.containsKey(upstreamIssue.getKey()));
    }
 
-   private boolean isCommitExcluded(List<Issue> downstreamIssues) {
+   private boolean isUpstreamIssueBackportBlocked(List<Issue> downstreamIssues) {
       for (Issue downstreamIssue : downstreamIssues) {
          ReleaseVersion targetReleaseVersion;
 
@@ -695,9 +705,9 @@ public class CommitProcessor {
    }
 
    private boolean checkCommit(Commit commit) throws Exception {
-      String checkCommand = this.checkCommand;
+      String checkCommand = formatCommitCommand(commit, this.checkCommand);
       if (commit.getTests().size() > 0 && checkTestsCommand != null) {
-         checkCommand = String.format(checkTestsCommand, String.join(",", commit.getTests()));
+         checkCommand = formatCommitCommand(commit, checkTestsCommand);
       }
 
       if (checkCommand != null) {
@@ -725,6 +735,12 @@ public class CommitProcessor {
       }
 
       return true;
+   }
+
+   private String formatCommitCommand(Commit commit, String command) throws Exception {
+      return command.replace("${HOSTNAME}", InetAddress.getLocalHost().getHostName())
+         .replace("${HOSTIP}", InetAddress.getLocalHost().getHostAddress())
+         .replace("${TEST}", String.join(",", commit.getTests()));
    }
 
    private boolean checkSurefireReports(File commitTestDir) throws Exception {
@@ -771,13 +787,12 @@ public class CommitProcessor {
                commitMessage += "\n\n" + "downstream: " + downstreamIssues;
             }
 
-            GitCommit cherryPickedCommit = gitRepository.commit(commitMessage,
-                                                                upstreamCommit.getAuthorName(),
-                                                                upstreamCommit.getAuthorEmail(),
-                                                                upstreamCommit.getAuthorWhen(),
-                                                                upstreamCommit.getAuthorTimeZone(),
-                                                                COMMITTER_NAME,
-                                                                COMMITTER_EMAIL);
+            GitCommit cherryPickedCommit = gitRepository
+               .commit(commitMessage,
+                  upstreamCommit.getAuthorName(),
+                  upstreamCommit.getAuthorEmail(),
+                  upstreamCommit.getAuthorWhen(),
+                  upstreamCommit.getAuthorTimeZone());
 
             if (!dryRun) {
                gitRepository.push("origin", null);
@@ -785,7 +800,7 @@ public class CommitProcessor {
 
             cherryPickedCommits.put(upstreamCommit.getName(), new AbstractMap.SimpleEntry(candidateReleaseVersion, cherryPickedCommit));
 
-            commitTask.setState(CommitTask.State.EXECUTED);
+            commitTask.setState(CommitTask.State.DONE);
             commitTask.setResult(cherryPickedCommit.getName());
          }
       } else {
@@ -823,25 +838,25 @@ public class CommitProcessor {
             downstreamIssueManager.addIssueLabels(args.get("issueKey"), args.get("label"));
          }
          downstreamIssueManager.getIssue(args.get("issueKey")).getLabels().add(args.get("label"));
-         commitTask.setState(CommitTask.State.EXECUTED);
+         commitTask.setState(CommitTask.State.DONE);
       } else if (type == CommitTask.Type.ADD_UPSTREAM_ISSUE_TO_DOWNSTREAM_ISSUE) {
          if (!dryRun) {
             downstreamIssueManager.addIssueUpstreamIssues(args.get("issueKey"), args.get("upstreamIssue"));
          }
          downstreamIssueManager.getIssue(args.get("issueKey")).getIssues().add(args.get("upstreamIssue"));
-         commitTask.setState(CommitTask.State.EXECUTED);
+         commitTask.setState(CommitTask.State.DONE);
       } else if (type == CommitTask.Type.SET_DOWNSTREAM_ISSUE_TARGET_RELEASE) {
          if (!dryRun) {
             downstreamIssueManager.setIssueTargetRelease(args.get("issueKey"), args.get("targetRelease"));
          }
          downstreamIssueManager.getIssue(args.get("issueKey")).setTargetRelease(args.get("targetRelease"));
-         commitTask.setState(CommitTask.State.EXECUTED);
+         commitTask.setState(CommitTask.State.DONE);
       } else if (type == CommitTask.Type.TRANSITION_DOWNSTREAM_ISSUE) {
          if (!dryRun) {
             downstreamIssueManager.transitionIssue(args.get("issueKey"), args.get("state"));
          }
          downstreamIssueManager.getIssue(args.get("issueKey")).setState(args.get("state"));
-         commitTask.setState(CommitTask.State.EXECUTED);
+         commitTask.setState(CommitTask.State.DONE);
       } else if (type == CommitTask.Type.CLONE_DOWNSTREAM_ISSUE) {
          String issueKey = args.get("issueKey");
          Issue cloningIssue = downstreamIssueManager.getIssue(issueKey);
@@ -880,7 +895,7 @@ public class CommitProcessor {
          }
 
          commitTask.setResult(clonedIssue.getKey());
-         commitTask.setState(CommitTask.State.EXECUTED);
+         commitTask.setState(CommitTask.State.DONE);
       } else if (type == CommitTask.Type.CLONE_UPSTREAM_ISSUE) {
          String issueKey = args.get("issueKey");
          Issue upstreamIssue = upstreamIssueManager.getIssue(issueKey);
@@ -915,15 +930,23 @@ public class CommitProcessor {
          }
 
          commitTask.setResult(downstreamIssue.getKey());
-         commitTask.setState(CommitTask.State.EXECUTED);
+         commitTask.setState(CommitTask.State.DONE);
       } else if (type == CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE) {
-         commitTask.setState(CommitTask.State.FAILED);
-         commitTask.setResult("OPERATION_NOT_SUPPORTED");
+         String issueKey = args.get("issueKey");
+
+         if (!projectConfig.getProject().getStream(projectStreamName).getExcludedUpstreamIssues().contains(issueKey)) {
+            if (!dryRun) {
+               projectConfig.addExcludedUpstreamIssue(issueKey, projectStreamName);
+            }
+            projectConfig.getProject().getStream(projectStreamName).getExcludedUpstreamIssues().add(issueKey);
+         }
+
+         commitTask.setState(CommitTask.State.DONE);
       } else {
          throw new IllegalStateException("Commit task type not supported: " + type);
       }
 
-      return CommitTask.State.EXECUTED.equals(commitTask.getState());
+      return CommitTask.State.DONE.equals(commitTask.getState());
    }
 
    private CommitTask getCommitTask(CommitTask.Type type, Map<String, String> args, List<CommitTask> tasks) {

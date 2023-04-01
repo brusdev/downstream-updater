@@ -3,6 +3,7 @@ package dev.brus.downstream.updater.git;
 import java.io.File;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -24,12 +25,37 @@ import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class JGitRepository implements GitRepository {
 
+   private final static Logger logger = LoggerFactory.getLogger(JGitRepository.class);
+
    private Git git;
 
+   private String userName;
+   private String userEmail;
+
    private Map<String, String> remoteAuthStrings;
+
+   public String getUserName() {
+      return userName;
+   }
+
+   public JGitRepository setUserName(String userName) {
+      this.userName = userName;
+      return this;
+   }
+
+   public String getUserEmail() {
+      return userEmail;
+   }
+
+   public JGitRepository setUserEmail(String userEmail) {
+      this.userEmail = userEmail;
+      return this;
+   }
 
    public Map<String, String> getRemoteAuthStrings() {
       return remoteAuthStrings;
@@ -113,6 +139,40 @@ public class JGitRepository implements GitRepository {
    }
 
    @Override
+   public void add(String filePattern) throws Exception {
+      git.add().addFilepattern(filePattern).call();
+   }
+
+   @Override
+   public GitCommit commit(String message) throws Exception {
+      Calendar calendar = Calendar.getInstance();
+      return commit(
+         message,
+         userName,
+         userEmail,
+         calendar.getTime(),
+         calendar.getTimeZone(),
+         userName,
+         userEmail);
+   }
+
+   @Override
+   public GitCommit commit(String message,
+      String authorName,
+      String authorEmail,
+      Date authorWhen,
+      TimeZone authorTimezone) throws Exception {
+      return commit(
+         message,
+         authorName,
+         authorEmail,
+         authorWhen,
+         authorTimezone,
+         userName,
+         userEmail);
+   }
+
+   @Override
    public GitCommit commit(String message,
                            String authorName,
                            String authorEmail,
@@ -137,7 +197,12 @@ public class JGitRepository implements GitRepository {
       CredentialsProvider credentialsProvider = null;
       String remoteAuthString = remoteAuthStrings.get(remote);
       if (remoteAuthString != null) {
-         credentialsProvider = new UsernamePasswordCredentialsProvider(remoteAuthString, "");
+         String[] authStringTokens = remoteAuthString.split(":");
+         if (authStringTokens.length > 1) {
+            credentialsProvider = new UsernamePasswordCredentialsProvider(authStringTokens[0], authStringTokens[1]);
+         } else {
+            credentialsProvider = new UsernamePasswordCredentialsProvider(remoteAuthString, "");
+         }
       } else {
          URIish remoteUrl = new URIish(git.getRepository().getConfig().getString("remote", remote, "url"));
          if ("https".equals(remoteUrl.getScheme()) && remoteUrl.getUser() != null) {

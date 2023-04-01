@@ -9,6 +9,15 @@ import java.util.TimeZone;
 import org.eclipse.jgit.revwalk.RevCommit;
 
 public interface GitRepository {
+
+   String getUserName();
+
+   JGitRepository setUserName(String userName) ;
+
+   String getUserEmail();
+
+   JGitRepository setUserEmail(String userEmail);
+
    File getDirectory();
 
    Map<String, String> getRemoteAuthStrings();
@@ -26,6 +35,12 @@ public interface GitRepository {
    void resetHard() throws Exception;
 
    List<String> getChangedFiles(GitCommit commit) throws Exception;
+
+   void add(String filePattern) throws Exception;
+
+   GitCommit commit(String message) throws Exception;
+
+   GitCommit commit(String message, String authorName, String authorEmail, Date authorWhen, TimeZone authorTimezone) throws Exception;
 
    GitCommit commit(String message, String authorName, String authorEmail, Date authorWhen, TimeZone authorTimezone, String committerName, String committerEmail) throws Exception;
 

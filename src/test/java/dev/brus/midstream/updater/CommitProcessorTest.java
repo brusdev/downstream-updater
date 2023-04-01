@@ -16,6 +16,7 @@ import dev.brus.downstream.updater.CommitProcessor;
 import dev.brus.downstream.updater.CommitTask;
 import dev.brus.downstream.updater.git.JGitRepository;
 import dev.brus.downstream.updater.issue.IssueStateMachine;
+import dev.brus.downstream.updater.project.ProjectConfig;
 import dev.brus.downstream.updater.util.CommandExecutor;
 import dev.brus.downstream.updater.util.ReleaseVersion;
 import dev.brus.downstream.updater.git.GitCommit;
@@ -48,8 +49,10 @@ public class CommitProcessorTest {
    public TemporaryFolder testFolder = new TemporaryFolder();
 
    private ReleaseVersion releaseVersion;
+   private String projectStream;
    private User testUser;
 
+   private ProjectConfig projectConfig;
    private GitRepository gitRepository;
 
    private UserResolver userResolver;
@@ -61,9 +64,12 @@ public class CommitProcessorTest {
    @Before
    public void initMocks() throws Exception {
       releaseVersion = ReleaseVersion.fromString("1.1.0.CR1");
+      projectStream = "1.1";
 
       testUser = new User().setUsername(TEST_USER_NAME)
          .setEmailAddresses(new String[] {TEST_USER_EMAIL});
+
+      projectConfig = Mockito.mock(ProjectConfig.class);
 
       gitRepository = Mockito.mock(GitRepository.class);
       Mockito.when(gitRepository.remoteGet("origin")).thenReturn("https://github.com/origin/test.git");
@@ -105,6 +111,8 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -113,6 +121,37 @@ public class CommitProcessorTest {
       Commit commit = commitProcessor.process(upstreamCommit);
 
       Assert.assertEquals(Commit.State.TODO, commit.getState());
+   }
+
+   @Test
+   public void testCommitWithExcludedUpstreamIssue() throws Exception {
+      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + " Test message";
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName("0")
+         .setShortMessage(commitShortMessage)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      commitProcessor.setExcludedUpstreamIssues(Collections.singletonMap(UPSTREAM_ISSUE_KEY_0, upstreamIssue));
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
+      Assert.assertEquals("UPSTREAM_ISSUE_EXCLUDED", commit.getReason());
    }
 
    @Test
@@ -125,6 +164,8 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -168,6 +209,8 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -221,6 +264,8 @@ public class CommitProcessorTest {
 
       File repoDir = testFolder.newFolder("repo");
       GitRepository gitRepository = new JGitRepository();
+      gitRepository.setUserName(TEST_USER_NAME);
+      gitRepository.setUserEmail(TEST_USER_EMAIL);
       gitRepository.clone("file://" + downstreamRepoDir.getAbsolutePath(), repoDir);
       gitRepository.remoteAdd("upstream", "file://" + upstreamRepoDir.getAbsolutePath());
       gitRepository.fetch("upstream");
@@ -269,6 +314,8 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          ReleaseVersion.fromString("1.0.0.CR1"),
          TARGET_RELEASE_FORMAT,
+         projectConfig,
+         "1.0",
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -276,7 +323,7 @@ public class CommitProcessorTest {
 
       commitProcessor.setCommitsDir(commitsDir);
       commitProcessor.setCheckCommand("mvn --show-version -DskipTests clean package");
-      commitProcessor.setCheckTestsCommand("mvn --show-version -Dtest=%s clean package");
+      commitProcessor.setCheckTestsCommand("mvn --show-version -Dtest=${TEST} clean package");
       commitProcessor.setConfirmedCommits(confirmedCommits);
 
       for (GitCommit upstreamCommit : upstreamCommits) {

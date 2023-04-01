@@ -11,6 +11,9 @@ import dev.brus.downstream.updater.issue.IssueCustomerPriority;
 import dev.brus.downstream.updater.issue.IssueManager;
 import dev.brus.downstream.updater.issue.IssueManagerFactory;
 import dev.brus.downstream.updater.issue.IssueSecurityImpact;
+import dev.brus.downstream.updater.project.Project;
+import dev.brus.downstream.updater.project.ProjectConfig;
+import dev.brus.downstream.updater.project.ProjectStream;
 import dev.brus.downstream.updater.user.User;
 import dev.brus.downstream.updater.user.UserResolver;
 import dev.brus.downstream.updater.util.CommandLine;
@@ -50,6 +53,11 @@ public class App {
    private final static Pattern revertedCommitPattern = Pattern.compile("This reverts commit ([0-9a-f]{40})");
    private final static Pattern prepareReleaseCommitPattern = Pattern.compile("Prepare release ([0-9]+\\.[0-9]+\\.[0-9]+.CR[0-9]+)");
 
+   private static final String PROJECT_CONFIG_REPOSITORY_OPTION = "project-config-repository";
+   private static final String PROJECT_CONFIG_REPOSITORY_AUTH_STRING_OPTION = "project-config-repository-auth-string";
+   private static final String PROJECT_CONFIG_BRANCH_OPTION = "project-config-branch";
+   private static final String PROJECT_CONFIG_PATH_OPTION = "project-config-path";
+   private static final String PROJECT_STREAM_NAME_OPTION = "project-stream-name";
    private static final String COMMITS_OPTION = "commits";
    private static final String CONFIRMED_COMMITS_OPTION = "confirmed-commits";
    private static final String PAYLOAD_OPTION = "payload";
@@ -79,19 +87,36 @@ public class App {
    private static final String CHECK_TESTS_COMMAND_OPTION = "check-tests-command";
    private static final String DRY_RUN_OPTION = "dry-run";
 
+   private static final String DEFAULT_USER_NAME = "rh-messaging-ci";
+   private static final String DEFAULT_USER_EMAIL = "messaging-infra@redhat.com";
+
 
    public static void main(String[] args) throws Exception {
+      // Initialize target directory
+      File targetDir = new File("target");
+      if (!targetDir.exists()) {
+         if (!targetDir.mkdir()) {
+            throw new RuntimeException("Error creating target directory");
+         }
+      }
+
       // Parse arguments
       CommandLineParser parser = new CommandLineParser();
-      parser.addOption("a", ASSIGNEE_OPTION, true, true, false, "the default assignee, i.e. dbruscin");
-      parser.addOption(null, RELEASE_OPTION, true, true, false, "the release, i.e. 7.11.0.CR1");
-      parser.addOption(null, TARGET_RELEASE_FORMAT_OPTION, true, true, false, "the target release format, i.e. AMQ %d.%d.%d.GA");
-      parser.addOption(null, UPSTREAM_REPOSITORY_OPTION, true, true, false, "the upstream repository to cherry-pick from, i.e. https://github.com/apache/activemq-artemis.git");
-      parser.addOption(null, UPSTREAM_REPOSITORY_AUTH_STRING_OPTION, true, true, false, "the auth string to access upstream repository");
-      parser.addOption(null, UPSTREAM_BRANCH_OPTION, true, true, false, "the upstream branch to cherry-pick from, i.e. main");
-      parser.addOption(null, DOWNSTREAM_REPOSITORY_OPTION, true, true, false, "the downstream repository to cherry-pick to, i.e. https://github.com/rh-messaging/activemq-artemis.git");
-      parser.addOption(null, DOWNSTREAM_REPOSITORY_AUTH_STRING_OPTION, true, true, false, "the auth string to access downstream repository");
-      parser.addOption(null, DOWNSTREAM_BRANCH_OPTION, true, true, false, "the downstream branch to cherry-pick to, i.e. 2.16.0.jbossorg-x");
+      parser.addOption(null, PROJECT_CONFIG_REPOSITORY_OPTION, true, true, false, "the project config repository, i.e. https://gitlab.cee.redhat.com/amq/project-configs.git");
+      parser.addOption(null, PROJECT_CONFIG_REPOSITORY_AUTH_STRING_OPTION, true, true, false, "the auth string to access project config repository");
+      parser.addOption(null, PROJECT_CONFIG_BRANCH_OPTION, true, true, false, "the project config branch, i.e. main");
+      parser.addOption(null, PROJECT_CONFIG_PATH_OPTION, true, true, false, "the project config path, i.e. amq-broker-distribution.yaml");
+      parser.addOption(null, PROJECT_STREAM_NAME_OPTION, true, true, false, "the project stream name, i.e. 7.10");
+
+      parser.addOption(null, ASSIGNEE_OPTION, false, true, false, "the default assignee, i.e. dbruscin");
+      parser.addOption(null, RELEASE_OPTION, false, true, false, "the release, i.e. 7.11.0.CR1");
+      parser.addOption(null, TARGET_RELEASE_FORMAT_OPTION, false, true, false, "the target release format, i.e. AMQ %d.%d.%d.GA");
+      parser.addOption(null, UPSTREAM_REPOSITORY_OPTION, false, true, false, "the upstream repository to cherry-pick from, i.e. https://github.com/apache/activemq-artemis.git");
+      parser.addOption(null, UPSTREAM_REPOSITORY_AUTH_STRING_OPTION, false, true, false, "the auth string to access upstream repository");
+      parser.addOption(null, UPSTREAM_BRANCH_OPTION, false, true, false, "the upstream branch to cherry-pick from, i.e. main");
+      parser.addOption(null, DOWNSTREAM_REPOSITORY_OPTION, false, true, false, "the downstream repository to cherry-pick to, i.e. https://github.com/rh-messaging/activemq-artemis.git");
+      parser.addOption(null, DOWNSTREAM_REPOSITORY_AUTH_STRING_OPTION, false, true, false, "the auth string to access downstream repository");
+      parser.addOption(null, DOWNSTREAM_BRANCH_OPTION, false, true, false, "the downstream branch to cherry-pick to, i.e. 2.16.0.jbossorg-x");
 
       parser.addOption(null, COMMITS_OPTION, false, true, false, "the commits");
       parser.addOption(null, CONFIRMED_COMMITS_OPTION, false, true, false, "the confirmed commits");
@@ -123,24 +148,39 @@ public class App {
          throw new RuntimeException("Error on parsing arguments", e);
       }
 
-      String assignee = line.getOptionValue(ASSIGNEE_OPTION);
+      String projectConfigRepository = line.getOptionValue(PROJECT_CONFIG_REPOSITORY_OPTION);
+      String projectConfigRepositoryAuthString = line.getOptionValue(PROJECT_CONFIG_REPOSITORY_AUTH_STRING_OPTION);
+      String projectConfigBranch = line.getOptionValue(PROJECT_CONFIG_BRANCH_OPTION);
+      String projectConfigPath = line.getOptionValue(PROJECT_CONFIG_PATH_OPTION);
+      String projectStreamName = line.getOptionValue(PROJECT_STREAM_NAME_OPTION);
 
-      String release = line.getOptionValue(RELEASE_OPTION);
+      ProjectConfig projectConfig = new ProjectConfig(projectConfigRepository,
+         projectConfigRepositoryAuthString, projectConfigBranch, projectConfigPath, targetDir);
+      projectConfig.setRepositoryUserName(DEFAULT_USER_NAME);
+      projectConfig.setRepositoryUserEmail(DEFAULT_USER_EMAIL);
+      projectConfig.load();
+
+      Project project = projectConfig.getProject();
+      ProjectStream projectStream = project.getStream(projectStreamName);
+
+      String assignee = line.getOptionValue(ASSIGNEE_OPTION, projectStream.getAssignee());
+
+      String release = line.getOptionValue(RELEASE_OPTION, projectStream.getRelease());
       ReleaseVersion candidateReleaseVersion = ReleaseVersion.fromString(release);
 
-      String targetReleaseFormat = line.getOptionValue(TARGET_RELEASE_FORMAT_OPTION);
+      String targetReleaseFormat = line.getOptionValue(TARGET_RELEASE_FORMAT_OPTION, project.getTargetReleaseFormat());
 
-      String upstreamRepository = line.getOptionValue(UPSTREAM_REPOSITORY_OPTION);
+      String upstreamRepository = line.getOptionValue(UPSTREAM_REPOSITORY_OPTION, project.getUpstreamRepository());
       String upstreamRepositoryAuthString = line.getOptionValue(UPSTREAM_REPOSITORY_AUTH_STRING_OPTION);
-      String upstreamBranch = line.getOptionValue(UPSTREAM_BRANCH_OPTION);
+      String upstreamBranch = line.getOptionValue(UPSTREAM_BRANCH_OPTION, projectStream.getUpstreamBranch());
 
-      String downstreamRepository = line.getOptionValue(DOWNSTREAM_REPOSITORY_OPTION);
+      String downstreamRepository = line.getOptionValue(DOWNSTREAM_REPOSITORY_OPTION, project.getDownstreamRepository());
       String downstreamRepositoryAuthString = line.getOptionValue(DOWNSTREAM_REPOSITORY_AUTH_STRING_OPTION);
-      String downstreamBranch = line.getOptionValue(DOWNSTREAM_BRANCH_OPTION);
+      String downstreamBranch = line.getOptionValue(DOWNSTREAM_BRANCH_OPTION, projectStream.getDownstreamBranch());
 
-      String downstreamIssuesServerURL = line.getOptionValue(DOWNSTREAM_ISSUES_SERVER_URL_OPTION);
+      String downstreamIssuesServerURL = line.getOptionValue(DOWNSTREAM_ISSUES_SERVER_URL_OPTION, project.getDownstreamIssuesServer());
       String downstreamIssuesAuthString = line.getOptionValue(DOWNSTREAM_ISSUES_AUTH_STRING_OPTION);
-      String downstreamIssuesProjectKey = line.getOptionValue(DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION);
+      String downstreamIssuesProjectKey = line.getOptionValue(DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION, project.getDownstreamIssuesProjectKey());
 
       IssueCustomerPriority downstreamIssuesCustomerPriority = IssueCustomerPriority.fromName(
          line.getOptionValue(DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY, IssueCustomerPriority.NONE.name()));
@@ -148,43 +188,36 @@ public class App {
       IssueSecurityImpact downstreamIssuesSecurityImpact = IssueSecurityImpact.fromName(
          line.getOptionValue(DOWNSTREAM_ISSUES_SECURITY_IMPACT, IssueSecurityImpact.NONE.name()));
 
-      String upstreamIssuesServerURL = line.getOptionValue(UPSTREAM_ISSUES_SERVER_URL_OPTION);
+      String upstreamIssuesServerURL = line.getOptionValue(UPSTREAM_ISSUES_SERVER_URL_OPTION, project.getUpstreamIssuesServer());
       String upstreamIssuesAuthString = line.getOptionValue(UPSTREAM_ISSUES_AUTH_STRING_OPTION);
-      String upstreamIssuesProjectKey = line.getOptionValue(UPSTREAM_ISSUES_PROJECT_KEY_OPTION);
+      String upstreamIssuesProjectKey = line.getOptionValue(UPSTREAM_ISSUES_PROJECT_KEY_OPTION, project.getUpstreamIssuesProjectKey());
 
-      String commitsFilename = line.getOptionValue(COMMITS_OPTION, null);
+      String commitsFilename = line.getOptionValue(COMMITS_OPTION);
 
       String confirmedCommitsFilename = line.getOptionValue(CONFIRMED_COMMITS_OPTION, "confirmed-commits.json");
 
       String payloadFilename = line.getOptionValue(PAYLOAD_OPTION);
 
-      String confirmedDownstreamIssueKeys = line.getOptionValue(CONFIRMED_DOWNSTREAM_ISSUES_OPTION, "");
+      String confirmedDownstreamIssueKeys = line.getOptionValue(CONFIRMED_DOWNSTREAM_ISSUES_OPTION);
 
-      String excludedDownstreamIssueKeys = line.getOptionValue(EXCLUDED_DOWNSTREAM_ISSUES_OPTION, "");
+      String excludedDownstreamIssueKeys = line.getOptionValue(EXCLUDED_DOWNSTREAM_ISSUES_OPTION, String.join(",", projectStream.getExcludedDownstreamIssues()));
 
-      String confirmedUpstreamIssueKeys = line.getOptionValue(CONFIRMED_UPSTREAM_ISSUES_OPTION, "");
+      String confirmedUpstreamIssueKeys = line.getOptionValue(CONFIRMED_UPSTREAM_ISSUES_OPTION);
 
-      String excludedUpstreamIssueKeys = line.getOptionValue(EXCLUDED_UPSTREAM_ISSUES_OPTION, "");
+      String excludedUpstreamIssueKeys = line.getOptionValue(EXCLUDED_UPSTREAM_ISSUES_OPTION, String.join(",", projectStream.getExcludedUpstreamIssues()));
 
       boolean checkIncompleteCommits = Boolean.parseBoolean(line.getOptionValue(CHECK_INCOMPLETE_COMMITS_OPTION, "true"));
 
       boolean dryRun = line.hasOption(DRY_RUN_OPTION);
 
-      String checkCommand = line.getOptionValue(CHECK_COMMAND_OPTION);
+      String checkCommand = line.getOptionValue(CHECK_COMMAND_OPTION, project.getCheckCommand());
 
-      String checkTestsCommand = line.getOptionValue(CHECK_TESTS_COMMAND_OPTION);
-
-      // Initialize target directory
-      File targetDir = new File("target");
-      if (!targetDir.exists()) {
-         if (!targetDir.mkdir()) {
-            throw new RuntimeException("Error creating target directory");
-         }
-      }
-
+      String checkTestsCommand = line.getOptionValue(CHECK_TESTS_COMMAND_OPTION, project.getCheckTestCommand());
 
       // Initialize git
       GitRepository gitRepository = new JGitRepository();
+      gitRepository.setUserName(DEFAULT_USER_NAME);
+      gitRepository.setUserEmail(DEFAULT_USER_EMAIL);
       gitRepository.getRemoteAuthStrings().put("origin", downstreamRepositoryAuthString);
       gitRepository.getRemoteAuthStrings().put("upstream", upstreamRepositoryAuthString);
       String downstreamRepositoryBaseName = FilenameUtils.getBaseName(downstreamRepository);
@@ -423,6 +456,8 @@ public class App {
       CommitProcessor commitProcessor = new CommitProcessor(
          candidateReleaseVersion,
          targetReleaseFormat,
+         projectConfig,
+         projectStreamName,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,

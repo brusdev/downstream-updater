@@ -148,7 +148,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private String postIssue(JsonObject issueObject) throws Exception {
-      HttpURLConnection connection = createConnection("/issue/");
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/");
       try {
          connection.setDoOutput(true);
          connection.setRequestMethod("POST");
@@ -287,7 +287,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       outwardIssue.addProperty("key", cloningIssueKey);
       issueLinkObject.add("outwardIssue", outwardIssue);
 
-      HttpURLConnection connection = createConnection("/issueLink");
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issueLink");
       try {
          connection.setDoOutput(true);
          connection.setRequestMethod("POST");
@@ -350,7 +350,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private void putIssue(String issueKey, JsonObject issueObject) throws Exception {
-      HttpURLConnection connection = createConnection("/issue/" + issueKey);
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey);
       try {
          connection.setDoOutput(true);
          connection.setRequestMethod("PUT");
@@ -385,7 +385,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public void transitionIssue(String issueKey, int transitionId) throws Exception {
-      HttpURLConnection connection = createConnection("/issue/" + issueKey + "/transitions");
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey + "/transitions");
       connection.setDoOutput(true);
       connection.setRequestMethod("POST");
 
@@ -397,7 +397,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private JsonObject loadIssue(String issueKey) throws Exception {
-      HttpURLConnection connection = createConnection("/issue/" + issueKey);
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
             return JsonParser.parseReader(inputStreamReader).getAsJsonObject();
@@ -416,7 +416,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public IssueTransaction[] getIssueTransactions(String issueKey) throws Exception {
-      HttpURLConnection connection = createConnection("/issue/" + issueKey + "/transitions?expand=transitions.fields");
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey + "/transitions?expand=transitions.fields");
       try {
          List<IssueTransaction> issueTransactions = new ArrayList<>();
 
