@@ -4,8 +4,10 @@ import java.io.File;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 
 import dev.brus.downstream.updater.util.CommandExecutor;
@@ -27,8 +29,14 @@ public class JGitRepository implements GitRepository {
 
    private Git git;
 
-   public JGitRepository() {
+   private Map<String, String> remoteAuthStrings;
 
+   public Map<String, String> getRemoteAuthStrings() {
+      return remoteAuthStrings;
+   }
+
+   public JGitRepository() {
+      this.remoteAuthStrings = new HashMap<>();
    }
 
    public File getDirectory() {
@@ -127,10 +135,15 @@ public class JGitRepository implements GitRepository {
       }
 
       CredentialsProvider credentialsProvider = null;
-      URIish remoteUrl = new URIish(git.getRepository().getConfig().getString("remote", remote, "url"));
-      if ("https".equals(remoteUrl.getScheme()) && remoteUrl.getUser() != null) {
-         credentialsProvider = new UsernamePasswordCredentialsProvider(
-            remoteUrl.getUser(), remoteUrl.getPass() != null ? remoteUrl.getPass() : "");
+      String remoteAuthString = remoteAuthStrings.get(remote);
+      if (remoteAuthString != null) {
+         credentialsProvider = new UsernamePasswordCredentialsProvider(remoteAuthString, "");
+      } else {
+         URIish remoteUrl = new URIish(git.getRepository().getConfig().getString("remote", remote, "url"));
+         if ("https".equals(remoteUrl.getScheme()) && remoteUrl.getUser() != null) {
+            credentialsProvider = new UsernamePasswordCredentialsProvider(
+               remoteUrl.getUser(), remoteUrl.getPass() != null ? remoteUrl.getPass() : "");
+         }
       }
 
       git.push().setRemote(remote).setRefSpecs(new RefSpec(name)).setCredentialsProvider(credentialsProvider).call();

@@ -58,11 +58,13 @@ public class App {
    private static final String CONFIRMED_DOWNSTREAM_ISSUES_OPTION = "confirmed-downstream-issues";
    private static final String EXCLUDED_DOWNSTREAM_ISSUES_OPTION = "excluded-downstream-issues";
    private static final String UPSTREAM_REPOSITORY_OPTION = "upstream-repository";
+   private static final String UPSTREAM_REPOSITORY_AUTH_STRING_OPTION = "upstream-repository-auth-string";
    private static final String UPSTREAM_BRANCH_OPTION = "upstream-branch";
    private static final String UPSTREAM_ISSUES_SERVER_URL_OPTION = "upstream-issues-server-url";
    private static final String UPSTREAM_ISSUES_AUTH_STRING_OPTION = "upstream-issues-auth-string";
    private static final String UPSTREAM_ISSUES_PROJECT_KEY_OPTION = "upstream-issues-project-key";
    private static final String DOWNSTREAM_REPOSITORY_OPTION = "downstream-repository";
+   private static final String DOWNSTREAM_REPOSITORY_AUTH_STRING_OPTION = "downstream-repository-auth-string";
    private static final String DOWNSTREAM_BRANCH_OPTION = "downstream-branch";
    private static final String DOWNSTREAM_ISSUES_SERVER_URL_OPTION = "downstream-issues-server-url";
    private static final String DOWNSTREAM_ISSUES_AUTH_STRING_OPTION = "downstream-issues-auth-string";
@@ -85,8 +87,10 @@ public class App {
       parser.addOption(null, RELEASE_OPTION, true, true, false, "the release, i.e. 7.11.0.CR1");
       parser.addOption(null, TARGET_RELEASE_FORMAT_OPTION, true, true, false, "the target release format, i.e. AMQ %d.%d.%d.GA");
       parser.addOption(null, UPSTREAM_REPOSITORY_OPTION, true, true, false, "the upstream repository to cherry-pick from, i.e. https://github.com/apache/activemq-artemis.git");
+      parser.addOption(null, UPSTREAM_REPOSITORY_AUTH_STRING_OPTION, true, true, false, "the auth string to access upstream repository");
       parser.addOption(null, UPSTREAM_BRANCH_OPTION, true, true, false, "the upstream branch to cherry-pick from, i.e. main");
       parser.addOption(null, DOWNSTREAM_REPOSITORY_OPTION, true, true, false, "the downstream repository to cherry-pick to, i.e. https://github.com/rh-messaging/activemq-artemis.git");
+      parser.addOption(null, DOWNSTREAM_REPOSITORY_AUTH_STRING_OPTION, true, true, false, "the auth string to access downstream repository");
       parser.addOption(null, DOWNSTREAM_BRANCH_OPTION, true, true, false, "the downstream branch to cherry-pick to, i.e. 2.16.0.jbossorg-x");
 
       parser.addOption(null, COMMITS_OPTION, false, true, false, "the commits");
@@ -127,9 +131,11 @@ public class App {
       String targetReleaseFormat = line.getOptionValue(TARGET_RELEASE_FORMAT_OPTION);
 
       String upstreamRepository = line.getOptionValue(UPSTREAM_REPOSITORY_OPTION);
+      String upstreamRepositoryAuthString = line.getOptionValue(UPSTREAM_REPOSITORY_AUTH_STRING_OPTION);
       String upstreamBranch = line.getOptionValue(UPSTREAM_BRANCH_OPTION);
 
       String downstreamRepository = line.getOptionValue(DOWNSTREAM_REPOSITORY_OPTION);
+      String downstreamRepositoryAuthString = line.getOptionValue(DOWNSTREAM_REPOSITORY_AUTH_STRING_OPTION);
       String downstreamBranch = line.getOptionValue(DOWNSTREAM_BRANCH_OPTION);
 
       String downstreamIssuesServerURL = line.getOptionValue(DOWNSTREAM_ISSUES_SERVER_URL_OPTION);
@@ -179,6 +185,8 @@ public class App {
 
       // Initialize git
       GitRepository gitRepository = new JGitRepository();
+      gitRepository.getRemoteAuthStrings().put("origin", downstreamRepositoryAuthString);
+      gitRepository.getRemoteAuthStrings().put("upstream", upstreamRepositoryAuthString);
       String downstreamRepositoryBaseName = FilenameUtils.getBaseName(downstreamRepository);
       File repoDir = new File(targetDir, downstreamRepositoryBaseName + "-repo");
 
@@ -497,14 +505,14 @@ public class App {
             Commit processedCommit = commits.stream().filter(commit -> downstreamCommit.getKey().getName().equals(commit.getDownstreamCommit())).findFirst().orElse(null);
 
             printer.printRecord("DONE", downstreamCommit.getValue(), processedCommit != null ? processedCommit.getUpstreamCommit() : "", downstreamCommit.getKey().getName(), downstreamCommit.getKey().getAuthorName(), downstreamCommit.getKey().getShortMessage(),
-                                processedCommit != null ? processedCommit.getUpstreamIssue() : "", String.join(" ", processedCommit != null ? processedCommit.getDownstreamIssues() : Collections.emptyList()), processedCommit != null && processedCommit.getTests().size() > 0);
+               processedCommit != null ? processedCommit.getUpstreamIssue() : "", String.join(" ", processedCommit != null ? processedCommit.getDownstreamIssues() : Collections.emptyList()), processedCommit != null && processedCommit.getTests().size() > 0);
          }
 
          for (Commit commit : commits.stream()
             .filter(commit -> (commit.getState() != Commit.State.SKIPPED && commit.getState() != Commit.State.DONE))
             .collect(Collectors.toList())) {
             printer.printRecord(commit.getState(), commit.getRelease(), commit.getUpstreamCommit(), commit.getDownstreamCommit(), commit.getAuthor(), commit.getSummary(),
-                                commit.getUpstreamIssue(), String.join(" ", commit.getDownstreamIssues()), commit.getTests().size() > 0);
+               commit.getUpstreamIssue(), String.join(" ", commit.getDownstreamIssues()), commit.getTests().size() > 0);
          }
       }
 

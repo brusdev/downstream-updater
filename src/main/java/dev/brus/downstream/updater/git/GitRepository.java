@@ -3,12 +3,15 @@ package dev.brus.downstream.updater.git;
 import java.io.File;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 
 import org.eclipse.jgit.revwalk.RevCommit;
 
 public interface GitRepository {
    File getDirectory();
+
+   Map<String, String> getRemoteAuthStrings();
 
    GitRepository open(File dir) throws Exception;
 
