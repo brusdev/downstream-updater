@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 
 public class ReleaseVersion implements Comparable<ReleaseVersion> {
-   private final static Pattern versionPattern = Pattern.compile("([0-9]+)\\.([0-9]+)\\.([0-9]+)(\\.(.*))*\\.(CR[0-9]+|GA)");
+   private final static Pattern versionPattern = Pattern.compile("([0-9]+)\\.([0-9]+)\\.([0-9]+)(\\.(.*))*\\.(CR[0-9]+|ER[0-9]+|GA)");
    private final static Pattern qualifierPattern = Pattern.compile("(.*)([0-9]+)");
 
    private final int major;

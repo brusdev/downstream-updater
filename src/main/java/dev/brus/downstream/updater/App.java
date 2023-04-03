@@ -51,7 +51,7 @@ public class App {
 
    private final static Pattern cherryPickedCommitPattern = Pattern.compile("cherry picked from commit ([0-9a-f]{40})");
    private final static Pattern revertedCommitPattern = Pattern.compile("This reverts commit ([0-9a-f]{40})");
-   private final static Pattern prepareReleaseCommitPattern = Pattern.compile("Prepare release ([0-9]+\\.[0-9]+\\.[0-9]+.CR[0-9]+)");
+   private final static Pattern prepareReleaseCommitPattern = Pattern.compile("Prepare release (.*)");
 
    private static final String PROJECT_CONFIG_REPOSITORY_OPTION = "project-config-repository";
    private static final String PROJECT_CONFIG_REPOSITORY_AUTH_STRING_OPTION = "project-config-repository-auth-string";
@@ -365,9 +365,6 @@ public class App {
             if (prepareReleaseCommitMatcher.find()) {
                logger.info("prepare release commit found: " + commit.getName() + " - " + commit.getShortMessage());
                cherryPickedReleaseVersion = ReleaseVersion.fromString(prepareReleaseCommitMatcher.group(1));
-            } else if (commit.getShortMessage().startsWith("7.8.")) {
-               logger.info("legacy release commit found: " + commit.getName() + " - " + commit.getShortMessage());
-               cherryPickedReleaseVersion = ReleaseVersion.fromString(commit.getShortMessage());
             } else {
                downstreamCommits.push(new AbstractMap.SimpleEntry<>(commit, cherryPickedReleaseVersion));
 
