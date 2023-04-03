@@ -510,13 +510,13 @@ public class App {
          //         .anyMatch(commitTask -> CommitTask.State.EXECUTED.equals(commitTask.getState()))))
          //   .collect(Collectors.toList())), Charset.defaultCharset());
 
-         //FileUtils.writeStringToFile(commitsFile, gson.toJson(commits), Charset.defaultCharset());
-
          // Ignore DONE commits of other releases
-         FileUtils.writeStringToFile(commitsFile, gson.toJson(commits.stream()
-            .filter(commit -> (commit.getState() != Commit.State.DONE) ||
-               (commit.getState() == Commit.State.DONE && commit.getRelease().equals(release)))
-            .collect(Collectors.toList())), Charset.defaultCharset());
+         //FileUtils.writeStringToFile(commitsFile, gson.toJson(commits.stream()
+         //   .filter(commit -> (commit.getState() != Commit.State.DONE) ||
+         //      (commit.getState() == Commit.State.DONE && commit.getRelease().equals(release)))
+         //   .collect(Collectors.toList())), Charset.defaultCharset());
+
+         FileUtils.writeStringToFile(commitsFile, gson.toJson(commits), Charset.defaultCharset());
 
          // Store upstream issues
          upstreamIssueManager.storeIssues(upstreamIssuesFile);
