@@ -532,15 +532,8 @@ public class CommitProcessor {
          // No selected downstream issues
 
          if (cherryPickedCommit != null) {
-            // Commit cherry-picked but no downstream issues
-            if (this.candidateReleaseVersion.compareWithoutCandidateTo(candidateReleaseVersion) == 0) {
-               if (upstreamIssueKeys.size() > 0) {
-                  if (checkIncompleteCommits) {
-                     logger.warn("INCOMPLETE because no downstream issues");
-                     commit.setState(Commit.State.INCOMPLETE).setReason("NO_DOWNSTREAM_ISSUES");
-                  }
-               }
-            }
+            // Commit cherry-picked with no downstream issues
+            logger.warn("Commit cherry-picked with no downstream issues");
          } else {
             // Commit not cherry-picked and no downstream issues
 

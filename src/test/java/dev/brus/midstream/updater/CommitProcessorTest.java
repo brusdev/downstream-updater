@@ -239,7 +239,7 @@ public class CommitProcessorTest {
       Assert.assertEquals(Commit.State.NEW, revertingCherryPickedCommit.getState());
 
       Commit revertedCherryPickeCommit = commitProcessor.process(revertedUpstreamCommit);
-      Assert.assertEquals(Commit.State.INCOMPLETE, revertedCherryPickeCommit.getState());
+      Assert.assertEquals(Commit.State.DONE, revertedCherryPickeCommit.getState());
    }
 
    @Test
