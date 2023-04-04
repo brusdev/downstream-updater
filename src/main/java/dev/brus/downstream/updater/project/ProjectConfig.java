@@ -8,9 +8,11 @@ import dev.brus.downstream.updater.git.GitRepository;
 import dev.brus.downstream.updater.git.JGitRepository;
 import dev.brus.downstream.updater.util.CommandExecutor;
 import org.apache.commons.io.FilenameUtils;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.representer.Representer;
 
 public class ProjectConfig {
    private String repository;
@@ -19,7 +21,6 @@ public class ProjectConfig {
    private String path;
    private File targetDir;
    private GitRepository gitRepository = new JGitRepository();
-   private Yaml yaml = new Yaml(new Constructor(Project.class, new LoaderOptions()));
    private Project project;
 
    public String getRepository() {
@@ -64,10 +65,6 @@ public class ProjectConfig {
       return gitRepository;
    }
 
-   public Yaml getYaml() {
-      return yaml;
-   }
-
    public Project getProject() {
       return project;
    }
@@ -86,6 +83,11 @@ public class ProjectConfig {
 
       File projectConfigFile = getProjectConfigFile();
       try (InputStream projectConfigInputStream = new FileInputStream(projectConfigFile)) {
+         Constructor constructor = new Constructor(Project.class, new LoaderOptions());
+         Representer representer = new Representer(new DumperOptions());
+         representer.getPropertyUtils().setSkipMissingProperties(true);
+         Yaml yaml = new Yaml(constructor, representer);
+
          project = yaml.load(projectConfigInputStream);
       }
    }

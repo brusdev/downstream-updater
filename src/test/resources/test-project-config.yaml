@@ -12,34 +12,15 @@ checkTestCommand: 'mvn --show-version --activate-profiles=dev,tests,redhat-indy 
 targetReleaseFormat: "AMQ %d.%d.%d.GA"
 streams:
   - name: 7.10
+    enabled: true
     assignee: dbruscin
     release: 7.10.3.CR1
     upstreamBranch: main
     downstreamBranch: 2.21.0.jbossorg-x
     excludedUpstreamIssues:
-      - ARTEMIS-3410
-      - ARTEMIS-3850
-      - ARTEMIS-3933
-      - ARTEMIS-3958
-      - ARTEMIS-3943
-      - ARTEMIS-3922
-      - ARTEMIS-3971
-      - ARTEMIS-3973
-      - ARTEMIS-3967
-      - ARTEMIS-3913
-      - ARTEMIS-3748
-      - ARTEMIS-3981
-      - ARTEMIS-3978
-      - ARTEMIS-3986
-      - ARTEMIS-4001
-      - ARTEMIS-4005
-      - ARTEMIS-4007
-      - ARTEMIS-3264
-      - ARTEMIS-4029
-      - ARTEMIS-4033
-      - ARTEMIS-4013
-      - ARTEMIS-4028
+      - ARTEMIS-0
   - name: 7.11
+    enabled: true
     assignee: dbruscin
     release: 7.11.1.CR1
     upstreamBranch: main
