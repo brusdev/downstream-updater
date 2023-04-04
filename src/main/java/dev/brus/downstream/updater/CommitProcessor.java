@@ -986,19 +986,23 @@ public class CommitProcessor {
       for (String downstreamIssueKey : downstreamIssues) {
          Issue downstreamIssue = downstreamIssueManager.getIssue(downstreamIssueKey);
          if (downstreamIssue != null) {
-            String downstreamIssueTargetRelease = downstreamIssue.getTargetRelease();
-            if (downstreamIssueTargetRelease == null ||
-               downstreamIssueTargetRelease.isEmpty() ||
-               downstreamIssueTargetRelease.equals(FUTURE_GA_RELEASE)) {
-               downstreamIssueTargetRelease = FUTURE_GA_RELEASE;
-            }
+            if (!downstreamIssue.isDocumentation()) {
+               String downstreamIssueTargetRelease = downstreamIssue.getTargetRelease();
+               if (downstreamIssueTargetRelease == null ||
+                  downstreamIssueTargetRelease.isEmpty() ||
+                  downstreamIssueTargetRelease.equals(FUTURE_GA_RELEASE)) {
+                  downstreamIssueTargetRelease = FUTURE_GA_RELEASE;
+               }
 
-            List<Issue> downstreamIssuesGroup = downstreamIssuesGroups.get(downstreamIssueTargetRelease);
-            if (downstreamIssuesGroup == null) {
-               downstreamIssuesGroup = new ArrayList<>();
-               downstreamIssuesGroups.put(downstreamIssueTargetRelease, downstreamIssuesGroup);
+               List<Issue> downstreamIssuesGroup = downstreamIssuesGroups.get(downstreamIssueTargetRelease);
+               if (downstreamIssuesGroup == null) {
+                  downstreamIssuesGroup = new ArrayList<>();
+                  downstreamIssuesGroups.put(downstreamIssueTargetRelease, downstreamIssuesGroup);
+               }
+               downstreamIssuesGroup.add(downstreamIssue);
+            } else {
+               logger.warn("Downstream issue for documentation: " + downstreamIssueKey);
             }
-            downstreamIssuesGroup.add(downstreamIssue);
          } else {
             logger.warn("Downstream issue not found: " + downstreamIssueKey);
          }

@@ -42,6 +42,7 @@ public class Issue {
    private boolean security;
    private IssueSecurityImpact securityImpact;
    private String targetRelease;
+   private boolean documentation;
 
    public String getDescription() {
       return description;
@@ -206,6 +207,15 @@ public class Issue {
 
    public Issue setUrl(String url) {
       this.url = url;
+      return this;
+   }
+
+   public boolean isDocumentation() {
+      return documentation;
+   }
+
+   public Issue setDocumentation(boolean documentation) {
+      this.documentation = documentation;
       return this;
    }
 }
