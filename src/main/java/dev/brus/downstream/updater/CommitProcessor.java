@@ -419,7 +419,7 @@ public class CommitProcessor {
       String selectedTargetRelease = null;
       List<Issue> selectedDownstreamIssues = null;
       List<Issue> allDownstreamIssues = new ArrayList<>();
-      Map<String, List<Issue>> downstreamIssuesGroups = groupDownstreamIssuesByTargetRelease(downstreamIssueKeys, release);
+      Map<String, List<Issue>> downstreamIssuesGroups = groupDownstreamIssuesByTargetRelease(downstreamIssueKeys);
       if (downstreamIssuesGroups != null && downstreamIssuesGroups.size() > 0) {
          selectedTargetRelease = selectRelease(downstreamIssuesGroups.keySet(), release);
          selectedDownstreamIssues = downstreamIssuesGroups.get(selectedTargetRelease);
@@ -437,7 +437,7 @@ public class CommitProcessor {
       // The commits related to downstream issues fixed in another release requires
       // a downstream release issue if they are cherry-picked to a branch after the first release
       boolean requireReleaseIssues =  candidateReleaseVersion.getPatch() > 0 ||
-         !isAnyDownstreamIssueDone(allDownstreamIssues);
+         !isAnyPreviousDownstreamIssueDone(candidateReleaseVersion, allDownstreamIssues);
 
       if (selectedDownstreamIssues != null && selectedDownstreamIssues.size() > 0) {
          // Commit related to downstream issues
@@ -453,7 +453,7 @@ public class CommitProcessor {
                      commit.setState(Commit.State.INCOMPLETE).setReason("DOWNSTREAM_ISSUES_NOT_UPDATED");
                   }
                } else {
-                  if (requireReleaseIssues) {
+                  if (requireReleaseIssues && !isAnyPreviousDownstreamIssueDone(candidateReleaseVersion, allDownstreamIssues)) {
                      // The commits related to downstream issues fixed in another release requires
                      // a downstream release issue if they are cherry-picked to a branch after the first release
                      logger.warn("INCOMPLETE because no downstream issues with the required target release");
@@ -578,9 +578,18 @@ public class CommitProcessor {
       return currentRelease.equals(release) || FUTURE_GA_RELEASE.equals(release);
    }
 
-   private boolean isAnyDownstreamIssueDone(List<Issue> downstreamIssues) {
+   private boolean isAnyPreviousDownstreamIssueDone(ReleaseVersion candidateReleaseVersion, List<Issue> downstreamIssues) {
       for (Issue downstreamIssue : downstreamIssues) {
-         if (downstreamIssueManager.getIssueStateDone().equals(downstreamIssue.getState())) {
+         ReleaseVersion targetReleaseVersion;
+
+         try {
+            targetReleaseVersion = ReleaseVersion.fromString(downstreamIssue.getTargetRelease());
+         } catch (Exception e) {
+            targetReleaseVersion = null;
+         }
+
+         if (downstreamIssueManager.getIssueStateDone().equals(downstreamIssue.getState()) &&
+            targetReleaseVersion != null && targetReleaseVersion.compareTo(candidateReleaseVersion) <= 0) {
             return true;
          }
       }
@@ -981,7 +990,7 @@ public class CommitProcessor {
       return selectedRelease;
    }
 
-   private Map<String, List<Issue>> groupDownstreamIssuesByTargetRelease(List<String> downstreamIssues, String release) {
+   private Map<String, List<Issue>> groupDownstreamIssuesByTargetRelease(List<String> downstreamIssues) {
       Map<String, List<Issue>> downstreamIssuesGroups = new HashMap<>();
       for (String downstreamIssueKey : downstreamIssues) {
          Issue downstreamIssue = downstreamIssueManager.getIssue(downstreamIssueKey);
