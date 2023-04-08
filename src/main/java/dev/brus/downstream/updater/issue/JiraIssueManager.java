@@ -58,7 +58,7 @@ public class JiraIssueManager implements IssueManager {
 
    private final static String ISSUE_TYPE_BUG = "Bug";
 
-   private static final String ISSUE_STATE_DONE = "Done";
+   private static final String ISSUE_RESOLUTION_FIXED = "Fixed";
 
    private final static String dateFormatPattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
 
@@ -120,8 +120,8 @@ public class JiraIssueManager implements IssueManager {
    }
 
    @Override
-   public String getIssueStateDone() {
-      return ISSUE_STATE_DONE;
+   public String getIssueResolutionDone() {
+      return ISSUE_RESOLUTION_FIXED;
    }
 
    @Override
@@ -263,6 +263,9 @@ public class JiraIssueManager implements IssueManager {
       String issueCreator = issueFields.getAsJsonObject("creator").getAsJsonPrimitive("name").getAsString();
       String issueReporter = issueFields.getAsJsonObject("reporter").getAsJsonPrimitive("name").getAsString();
       String issueStatus = issueFields.getAsJsonObject("status").getAsJsonPrimitive("name").getAsString();
+      JsonElement issueResolutionElement = issueFields.get("resolution");
+      String issueResolution = issueResolutionElement != null && !issueResolutionElement.isJsonNull() ?
+         issueResolutionElement.getAsJsonObject().getAsJsonPrimitive("name").getAsString() : null;
       JsonElement issueDescriptionElement = issueFields.get("description");
       String issueDescription = issueDescriptionElement == null || issueDescriptionElement.isJsonNull() ?
          null : issueDescriptionElement.getAsString();
@@ -277,6 +280,7 @@ public class JiraIssueManager implements IssueManager {
          .setCreator(issueCreator)
          .setReporter(issueReporter)
          .setState(issueStatus)
+         .setResolution(issueResolution)
          .setSummary(issueSummary)
          .setDescription(issueDescription)
          .setCreated(issueCreated)

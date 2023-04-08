@@ -47,8 +47,6 @@ public class GithubIssueManager implements IssueManager {
 
    private final static String ISSUE_TYPE_BUG = "Bug";
 
-   private static final String ISSUE_STATE_DONE = "Closed";
-
    private final static String dateFormatPattern = "yyyy-MM-dd'T'HH:mm:SS'Z'";
 
    private final static Pattern serverURLPattern = Pattern.compile("https://api.github.com/repos/([^/]+)/([^/]+)/issues");
@@ -124,8 +122,8 @@ public class GithubIssueManager implements IssueManager {
    }
 
    @Override
-   public String getIssueStateDone() {
-      return ISSUE_STATE_DONE;
+   public String getIssueResolutionDone() {
+      throw new IllegalStateException();
    }
 
    @Override

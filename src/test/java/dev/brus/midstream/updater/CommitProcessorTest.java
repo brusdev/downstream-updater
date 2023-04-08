@@ -98,7 +98,8 @@ public class CommitProcessorTest {
          .setTargetRelease("1.0.0.GA")
          .setCustomer(true)
          .setCustomerPriority(IssueCustomerPriority.HIGH)
-         .setState("Done");
+         .setResolution("Done")
+         .setState("Closed");
       downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
@@ -106,7 +107,7 @@ public class CommitProcessorTest {
 
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
       Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
-      Mockito.when(downstreamIssueManager.getIssueStateDone()).thenReturn("Done");
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn("Done");
 
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
@@ -306,7 +307,7 @@ public class CommitProcessorTest {
       Mockito.when(downstreamIssueStateMachine.getStateIndex(Mockito.any())).thenReturn(0);
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
       Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
-      Mockito.when(downstreamIssueManager.getIssueStateDone()).thenReturn("Done");
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn("Done");
       Mockito.when(downstreamIssueManager.getIssueLabelUpstreamTestCoverage()).thenReturn("upstream-test-coverage");
       Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
 

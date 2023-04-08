@@ -48,7 +48,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
 
    private final static String ISSUE_TYPE_BUG = "Bug";
 
-   private static final String ISSUE_STATE_DONE = "Done";
+   private static final String ISSUE_RESOLUTION_DONE = "Done";
    private static final String ISSUE_STATE_DEV_COMPLETE = "Dev Complete";
 
    private static final String ISSUE_LABEL_NO_BACKPORT_NEEDED = "NO-BACKPORT-NEEDED";
@@ -82,8 +82,8 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    @Override
-   public String getIssueStateDone() {
-      return ISSUE_STATE_DONE;
+   public String getIssueResolutionDone() {
+      return ISSUE_RESOLUTION_DONE;
    }
 
    @Override

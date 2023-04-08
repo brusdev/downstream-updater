@@ -588,7 +588,7 @@ public class CommitProcessor {
             targetReleaseVersion = null;
          }
 
-         if (downstreamIssueManager.getIssueStateDone().equals(downstreamIssue.getState()) &&
+         if (downstreamIssueManager.getIssueResolutionDone().equals(downstreamIssue.getResolution()) &&
             targetReleaseVersion != null && targetReleaseVersion.compareTo(candidateReleaseVersion) <= 0) {
             return true;
          }

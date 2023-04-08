@@ -43,6 +43,7 @@ public class Issue {
    private IssueSecurityImpact securityImpact;
    private String targetRelease;
    private boolean documentation;
+   private String resolution;
 
    public String getDescription() {
       return description;
@@ -216,6 +217,15 @@ public class Issue {
 
    public Issue setDocumentation(boolean documentation) {
       this.documentation = documentation;
+      return this;
+   }
+
+   public String getResolution() {
+      return resolution;
+   }
+
+   public Issue setResolution(String resolution) {
+      this.resolution = resolution;
       return this;
    }
 }

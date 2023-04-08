@@ -41,7 +41,7 @@ public interface IssueManager {
 
    String getIssueTypeBug();
 
-   String getIssueStateDone();
+   String getIssueResolutionDone();
 
    void storeIssues(File file) throws Exception;
 
