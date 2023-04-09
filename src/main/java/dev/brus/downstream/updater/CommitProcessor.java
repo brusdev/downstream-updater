@@ -996,19 +996,23 @@ public class CommitProcessor {
          Issue downstreamIssue = downstreamIssueManager.getIssue(downstreamIssueKey);
          if (downstreamIssue != null) {
             if (!downstreamIssue.isDocumentation()) {
-               String downstreamIssueTargetRelease = downstreamIssue.getTargetRelease();
-               if (downstreamIssueTargetRelease == null ||
-                  downstreamIssueTargetRelease.isEmpty() ||
-                  downstreamIssueTargetRelease.equals(FUTURE_GA_RELEASE)) {
-                  downstreamIssueTargetRelease = FUTURE_GA_RELEASE;
-               }
+               if (!downstreamIssueManager.isDuplicateIssue(downstreamIssueKey)) {
+                  String downstreamIssueTargetRelease = downstreamIssue.getTargetRelease();
+                  if (downstreamIssueTargetRelease == null ||
+                     downstreamIssueTargetRelease.isEmpty() ||
+                     downstreamIssueTargetRelease.equals(FUTURE_GA_RELEASE)) {
+                     downstreamIssueTargetRelease = FUTURE_GA_RELEASE;
+                  }
 
-               List<Issue> downstreamIssuesGroup = downstreamIssuesGroups.get(downstreamIssueTargetRelease);
-               if (downstreamIssuesGroup == null) {
-                  downstreamIssuesGroup = new ArrayList<>();
-                  downstreamIssuesGroups.put(downstreamIssueTargetRelease, downstreamIssuesGroup);
+                  List<Issue> downstreamIssuesGroup = downstreamIssuesGroups.get(downstreamIssueTargetRelease);
+                  if (downstreamIssuesGroup == null) {
+                     downstreamIssuesGroup = new ArrayList<>();
+                     downstreamIssuesGroups.put(downstreamIssueTargetRelease, downstreamIssuesGroup);
+                  }
+                  downstreamIssuesGroup.add(downstreamIssue);
+               } else {
+                  logger.warn("Downstream issue duplicate: " + downstreamIssueKey);
                }
-               downstreamIssuesGroup.add(downstreamIssue);
             } else {
                logger.warn("Downstream issue for documentation: " + downstreamIssueKey);
             }

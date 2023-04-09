@@ -44,4 +44,6 @@ public interface DownstreamIssueManager extends IssueManager {
    Issue createIssue(String summary, String description, String type, String assignee, String targetRelease, List<String> labels) throws Exception;
 
    void linkIssue(String issueKey, String cloningIssueKey, String linkType) throws Exception;
+
+   boolean isDuplicateIssue(String issueKey);
 }
