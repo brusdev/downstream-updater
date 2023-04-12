@@ -269,7 +269,7 @@ public class CommitProcessor {
       this.dryRun = false;
       this.checkTestsCommand = null;
       this.checkCommand = null;
-      this.commitsDir = new File("commits");
+      this.commitsDir = null;
    }
 
    public Commit process(GitCommit upstreamCommit) throws Exception {
@@ -310,6 +310,15 @@ public class CommitProcessor {
          .setRelease(candidateReleaseVersion.toString())
          .setTests(getCommitTests(upstreamCommit))
          .setState(Commit.State.DONE);
+
+      if (commitsDir != null) {
+         // Initialize commit dir
+         File commitDir = new File(commitsDir, upstreamCommit.getName());
+         if (!commitDir.mkdirs()) {
+            throw new RuntimeException("Error creating commit directory: " + commitDir);
+         }
+         commit.setUpstreamCommitDir(commitDir.getPath());
+      }
 
       List<String> upstreamRevertingChain = upstreamRevertingChains.get(upstreamCommit.getName());
 
@@ -713,15 +722,13 @@ public class CommitProcessor {
       }
 
       if (checkCommand != null) {
-         File commitDir = new File(commitsDir, commit.getUpstreamCommit());
-         if (!commitDir.exists()) {
-            if (!commitDir.mkdirs()) {
-               throw new RuntimeException("Error creating commitDir: " + commitDir);
-            }
+         BufferedWriter outputCommitTestWriter = null;
+         if (commit.getUpstreamCommitDir() != null) {
+            File outputCommitTestFile = new File(commit.getUpstreamCommitDir(), "check.log");
+            outputCommitTestWriter = new BufferedWriter(new FileWriter(outputCommitTestFile));
          }
 
-         File outputCommitTestFile = new File(commitDir, "check.log");
-         try (BufferedWriter outputCommitTestWriter = new BufferedWriter(new FileWriter(outputCommitTestFile))) {
+         try {
             int exitCode = CommandExecutor.tryExecute(checkCommand,
                gitRepository.getDirectory(), outputCommitTestWriter);
 
@@ -731,8 +738,10 @@ public class CommitProcessor {
 
             File pomXmlFile = new File(gitRepository.getDirectory(), "pom.xml");
             if (pomXmlFile.exists() && commit.getTests().size() > 0) {
-               return checkSurefireReports(commitDir);
+               return checkSurefireReports(commit.getUpstreamCommitDir());
             }
+         } finally {
+            outputCommitTestWriter.close();
          }
       }
 
@@ -745,7 +754,7 @@ public class CommitProcessor {
          .replace("${TEST}", String.join(",", commit.getTests()));
    }
 
-   private boolean checkSurefireReports(File commitTestDir) throws Exception {
+   private boolean checkSurefireReports(String commitTestDir) throws Exception {
       //Find surefireReportsDirectories
       List<File> surefireReportsDirectories = new ArrayList<>();
       try (Stream<Path> walk = Files.walk(Paths.get(gitRepository.getDirectory().getAbsolutePath()))) {
@@ -755,7 +764,7 @@ public class CommitProcessor {
 
       //Copy surefireReports
       for (File surefireReportsDirectory : surefireReportsDirectories) {
-         FileUtils.copyDirectory(surefireReportsDirectory, commitTestDir);
+         FileUtils.copyDirectory(surefireReportsDirectory, new File(commitTestDir));
       }
 
       //Analyze surefireReports

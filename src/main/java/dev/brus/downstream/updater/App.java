@@ -23,11 +23,14 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.eclipse.jgit.util.io.TeeOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.util.AbstractMap;
 import java.util.ArrayDeque;
@@ -440,7 +443,7 @@ public class App {
 
 
       // Initialize commits dir
-      File commitsDir = new File(targetDir, "commits");
+      File commitsDir = new File(targetDir, downstreamRepositoryBaseName + "-" + release + "-commits");
       if (commitsDir.exists()) {
          FileUtils.deleteDirectory(commitsDir);
       }
@@ -493,9 +496,23 @@ public class App {
       List<Commit> commits = new ArrayList<>();
       try {
          for (GitCommit upstreamCommit : upstreamCommits) {
-            logger.info("Upstream commit: " + upstreamCommit.getName() + " - " + upstreamCommit.getShortMessage());
+            Commit commit;
+            File commitOutputFile = new File(targetDir, "commit-output.log");
+            try (FileOutputStream commitLogFileOutputStream = new FileOutputStream(commitOutputFile)) {
+               PrintStream originalOut = System.out;
+               System.setOut(new PrintStream(new TeeOutputStream(originalOut, commitLogFileOutputStream)));
+               try {
+                  commit = commitProcessor.process(upstreamCommit);
+               } finally {
+                  originalOut.flush();
+                  System.setOut(originalOut);
+               }
+            }
 
-            commits.add(commitProcessor.process(upstreamCommit));
+            if (commit != null) {
+               commits.add(commit);
+               commitOutputFile.renameTo(new File(commit.getUpstreamCommitDir(), "output.log"));
+            }
          }
       } finally {
          // Store commits

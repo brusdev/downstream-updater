@@ -62,6 +62,7 @@ public class Commit {
    private List<String> downstreamIssues;
    private String downstreamIssuesBaseUrl;
    private String upstreamCommit;
+   private String upstreamCommitDir;
    private String upstreamCommitUrl;
    private String downstreamCommit;
    private String downstreamCommitUrl;
@@ -213,6 +214,15 @@ public class Commit {
 
    public Commit setDownstreamCommitUrl(String downstreamCommitUrl) {
       this.downstreamCommitUrl = downstreamCommitUrl;
+      return this;
+   }
+
+   public String getUpstreamCommitDir() {
+      return upstreamCommitDir;
+   }
+
+   public Commit setUpstreamCommitDir(String upstreamCommitDir) {
+      this.upstreamCommitDir = upstreamCommitDir;
       return this;
    }
 }
