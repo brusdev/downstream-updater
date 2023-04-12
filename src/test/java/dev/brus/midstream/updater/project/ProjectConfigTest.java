@@ -61,6 +61,9 @@ public class ProjectConfigTest {
       CommandExecutor.execute("git reset --hard", repoDir);
       Assert.assertTrue(CommandExecutor.execute("git log", projectConfig.getGitRepository().getDirectory()).contains(excludedUpstreamIssue));
       Assert.assertTrue(Files.readString(new File(repoDir, TEST_PROJECT_CONFIG).toPath()).contains(excludedUpstreamIssue));
+
+      projectConfig.load();
+      Assert.assertTrue(projectConfig.getProject().getStream(projectStreamName).getExcludedUpstreamIssues().contains(excludedUpstreamIssue));
    }
 
 }

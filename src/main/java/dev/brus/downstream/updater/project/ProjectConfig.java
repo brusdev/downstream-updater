@@ -94,7 +94,7 @@ public class ProjectConfig {
 
    public void addExcludedUpstreamIssue(String issueKey, String streamName) throws Exception {
       CommandExecutor.execute("yq -i '(.streams[] | select(.name == \"" + streamName
-         + "\" ) | .excludedUpstreamIssues) += \"" + issueKey + "\" ' " + path,
+         + "\" ) | .excludedUpstreamIssues) += [\"" + issueKey + "\"] ' " + path,
          gitRepository.getDirectory(), null);
 
       gitRepository.add(path);
