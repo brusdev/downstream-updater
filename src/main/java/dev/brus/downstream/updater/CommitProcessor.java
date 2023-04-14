@@ -301,7 +301,7 @@ public class CommitProcessor {
       String upstreamRemoteUri = gitRepository.remoteGet("upstream");
 
       Commit commit = new Commit()
-         .setAssignee(userResolver.getDefaultUser().getUsername())
+         .setAssignee(getAssignee(upstreamCommit, null, null).getUsername())
          .setAuthor(upstreamCommit.getAuthorName())
          .setUpstreamCommit(upstreamCommit.getName())
          .setUpstreamCommitUrl(upstreamRemoteUri.replace(".git", "/commit/" + upstreamCommit.getName()))
@@ -354,6 +354,8 @@ public class CommitProcessor {
             logger.warn("Upstream issue not found: " + upstreamIssueKey);
          }
       }
+
+      commit.setAssignee(getAssignee(upstreamCommit, upstreamIssues, null).getUsername());
 
       if (upstreamIssues.isEmpty()) {
          if (processCommitTask(commit, release, candidate, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
