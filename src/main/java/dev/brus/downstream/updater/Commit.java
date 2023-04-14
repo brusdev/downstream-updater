@@ -50,16 +50,11 @@ public class Commit {
        * The upstream commit doesn't match release criteria
        */
       SKIPPED,
-
-      /**
-       * The upstream commit points to an invalid upstream issue
-       */
-      INVALID,
    }
 
    private String assignee;
    private Commit.State state;
-   private IssueReference upstreamIssue;
+   private List<IssueReference> upstreamIssues;
    private List<IssueReference> downstreamIssues;
    private String upstreamCommit;
    private String upstreamCommitDir;
@@ -74,6 +69,7 @@ public class Commit {
    private List<CommitTask> tasks;
 
    public Commit() {
+      upstreamIssues = new ArrayList<>();
       downstreamIssues = new ArrayList<>();
       tests = new ArrayList<>();
       tasks = new ArrayList<>();
@@ -141,13 +137,8 @@ public class Commit {
       return this;
    }
 
-   public IssueReference getUpstreamIssue() {
-      return upstreamIssue;
-   }
-
-   public Commit setUpstreamIssue(IssueReference upstreamIssue) {
-      this.upstreamIssue = upstreamIssue;
-      return this;
+   public List<IssueReference> getUpstreamIssues() {
+      return upstreamIssues;
    }
 
    public List<IssueReference> getDownstreamIssues() {

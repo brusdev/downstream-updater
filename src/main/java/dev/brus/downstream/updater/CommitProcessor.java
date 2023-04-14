@@ -324,51 +324,45 @@ public class CommitProcessor {
 
       List<String> upstreamIssueKeys = upstreamIssueManager.parseIssueKeys(upstreamCommit.getShortMessage());
 
-      String upstreamIssueKey = null;
-      if (upstreamIssueKeys.size() > 0) {
-         upstreamIssueKey = upstreamIssueKeys.get(0);
-      } else if (cherryPickedCommit == null) {
+      if (upstreamIssueKeys.isEmpty()) {
          if (upstreamRevertingChain != null) {
             for(String upstreamRevertingChainItem : upstreamRevertingChain) {
                GitCommit upstreamRevertingChainCommit = gitRepository.resolveCommit(upstreamRevertingChainItem);
                List<String> upstreamRevertingIssueKeys = upstreamIssueManager.parseIssueKeys(upstreamRevertingChainCommit.getShortMessage());
 
                if (upstreamRevertingIssueKeys.size() > 0) {
-                  upstreamIssueKey = upstreamRevertingIssueKeys.get(0);
+                  upstreamIssueKeys.addAll(upstreamRevertingIssueKeys);
                   break;
                }
             }
          }
+      }
 
-         if (upstreamIssueKey == null) {
-            if (processCommitTask(commit, release, candidate, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
-               CommitTask.Action.FORCE, Collections.emptyMap(), confirmedTasks)) {
-               commit.setState(Commit.State.DONE);
+      List<Issue> upstreamIssues = new ArrayList<>();
+      for (String upstreamIssueKey : upstreamIssueKeys){
+         Issue upstreamIssue = upstreamIssueManager.getIssue(upstreamIssueKey);
+
+         if (upstreamIssue != null) {
+            if (!isUpstreamIssueExcluded(upstreamIssue)) {
+               upstreamIssues.add(upstreamIssue);
+               commit.getUpstreamIssues().add(new IssueReference(upstreamIssue));
             } else {
-               logger.info("SKIPPED because the commit message does not include an upstream issue key");
-               commit.setState(Commit.State.SKIPPED).setReason("NO_UPSTREAM_ISSUE");
+               logger.info("Upstream issue excluded: " + upstreamIssueKey);
             }
-            return commit;
+         } else {
+            logger.warn("Upstream issue not found: " + upstreamIssueKey);
          }
       }
 
-      Issue upstreamIssue = null;
-      if (upstreamIssueKey != null) {
-         if (upstreamIssueKeys.size() > 1 && cherryPickedCommit == null) {
-            logger.warn("SKIPPED because the commit message includes multiple upstream issue keys");
-            commit.setState(Commit.State.INVALID).setReason("MULTIPLE_UPSTREAM_ISSUES");
-            return commit;
+      if (upstreamIssues.isEmpty()) {
+         if (processCommitTask(commit, release, candidate, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
+            CommitTask.Action.FORCE, Collections.emptyMap(), confirmedTasks)) {
+            commit.setState(Commit.State.DONE);
+         } else {
+            logger.info("SKIPPED because the commit message has no valid upstream issues");
+            commit.setState(Commit.State.SKIPPED).setReason("NO_VALID_UPSTREAM_ISSUES");
          }
-
-         upstreamIssue = upstreamIssueKey != null ? upstreamIssueManager.getIssue(upstreamIssueKey) : null;
-
-         if (upstreamIssue == null && cherryPickedCommit == null) {
-            logger.warn("SKIPPED because the upstream issue is not found: " + upstreamIssueKey);
-            commit.setState(Commit.State.INVALID).setReason("UPSTREAM_ISSUE_NOT_FOUND");
-            return commit;
-         }
-
-         commit.setUpstreamIssue(new IssueReference(upstreamIssue));
+         return commit;
       }
 
       //Skip commits of reverting chains only if they are even and none is cherry-picked
@@ -397,7 +391,7 @@ public class CommitProcessor {
       // Get downstreamIssueKeys
       List<String> downstreamIssueKeys = new ArrayList<>();
 
-      if (upstreamIssue != null) {
+      for (Issue upstreamIssue : upstreamIssues) {
          downstreamIssueKeys.addAll(upstreamIssue.getIssues());
       }
 
@@ -439,7 +433,7 @@ public class CommitProcessor {
          }
       }
 
-      commit.setAssignee(getAssignee(upstreamCommit, upstreamIssue, selectedDownstreamIssues).getUsername());
+      commit.setAssignee(getAssignee(upstreamCommit, upstreamIssues, selectedDownstreamIssues).getUsername());
 
       // The commits related to downstream issues fixed in another release requires
       // a downstream release issue if they are cherry-picked to a branch after the first release
@@ -479,9 +473,6 @@ public class CommitProcessor {
             if (isUpstreamIssueBackportBlocked(allDownstreamIssues)) {
                logger.info("SKIPPED because the upstream issue is referenced by a downstream issue with NO-BACKPORT-NEEDED");
                commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_BACKPORT_BLOCKED");
-            } else if (isUpstreamIssueExcluded(upstreamIssue)) {
-               logger.info("SKIPPED because the the upstream issue is excluded");
-               commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
             } else if (isCurrentOrFutureRelease(release, selectedTargetRelease)) {
                // The selected downstream issues have the required target release
 
@@ -510,11 +501,13 @@ public class CommitProcessor {
                      if (cloneDownstreamIssues(commit, release, candidate, selectedDownstreamIssues, confirmedTasks)) {
                         commit.setState(Commit.State.TODO);
                      } else {
-                        if (processCommitTask(commit, release, candidate, CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE,
-                           CommitTask.Action.SKIP, Map.of("issueKey",upstreamIssue.getKey()), confirmedTasks)) {
-                           commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
-                        } else {
-                           commit.setState(Commit.State.NEW).setReason("DOWNSTREAM_ISSUES_SUFFICIENT_BUT_NONE_WITH_REQUIRED_TARGET_RELEASE");
+                        for (Issue upstreamIssue : upstreamIssues) {
+                           if (processCommitTask(commit, release, candidate, CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE,
+                              CommitTask.Action.SKIP, Map.of("issueKey",upstreamIssue.getKey()), confirmedTasks)) {
+                              commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
+                           } else {
+                              commit.setState(Commit.State.NEW).setReason("DOWNSTREAM_ISSUES_SUFFICIENT_BUT_NONE_WITH_REQUIRED_TARGET_RELEASE");
+                           }
                         }
                      }
                   } else {
@@ -543,14 +536,13 @@ public class CommitProcessor {
             logger.warn("Commit cherry-picked with no downstream issues");
          } else {
             // Commit not cherry-picked and no downstream issues
+            Issue sufficientUpstreamIssue = upstreamIssues.stream().filter(issue ->
+               confirmedUpstreamIssues != null && confirmedUpstreamIssues.containsKey(issue.getKey()) ||
+                  issue.getType().equals(upstreamIssueManager.getIssueTypeBug())).findFirst().orElse(null);
 
-            if (isUpstreamIssueExcluded(upstreamIssue)) {
-               logger.info("SKIPPED because the the upstream issue is excluded");
-               commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
-            } else if ((confirmedUpstreamIssues != null && confirmedUpstreamIssues.containsKey(upstreamIssue.getKey())) ||
-               (upstreamIssue.getType().equals(upstreamIssueManager.getIssueTypeBug()))) {
+            if (sufficientUpstreamIssue != null) {
                if (processCommitTask(commit, release, candidate, CommitTask.Type.CLONE_UPSTREAM_ISSUE,
-                  CommitTask.Action.STEP, Map.of("issueKey",upstreamIssue.getKey()), confirmedTasks)) {
+                  CommitTask.Action.STEP, Map.of("issueKey", sufficientUpstreamIssue.getKey()), confirmedTasks)) {
                   commit.setState(Commit.State.DONE);
                } else {
                   if (processCommitTask(commit, release, candidate, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
@@ -558,7 +550,7 @@ public class CommitProcessor {
                      commit.setState(Commit.State.DONE);
                   } else {
                      if (processCommitTask(commit, release, candidate, CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE,
-                        CommitTask.Action.SKIP, Map.of("issueKey",upstreamIssue.getKey()), confirmedTasks)) {
+                        CommitTask.Action.SKIP, Map.of("issueKey", sufficientUpstreamIssue.getKey()), confirmedTasks)) {
                         commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
                      } else {
                         logger.info("SKIPPED because the the upstream issue is sufficient but there are no downstream issues");
@@ -681,11 +673,11 @@ public class CommitProcessor {
             }
          }
 
-         //Check if the downstream issue has the upstream issue
-         if (commit.getUpstreamIssue() != null && !downstreamIssue.getIssues().contains(commit.getUpstreamIssue())) {
+         //Check if the downstream issue has any upstream issues
+         if (!downstreamIssue.getIssues().stream().anyMatch(commit.getUpstreamIssues()::contains)) {
             if (checkIncompleteCommits) {
                executed &= processCommitTask(commit, release, candidate, CommitTask.Type.ADD_UPSTREAM_ISSUE_TO_DOWNSTREAM_ISSUE,
-                  CommitTask.Action.STEP, Map.of("issueKey", downstreamIssue.getKey(), "upstreamIssue", commit.getUpstreamIssue().getKey()), confirmedTasks);
+                  CommitTask.Action.STEP, Map.of("issueKey", downstreamIssue.getKey(), "upstreamIssue", commit.getUpstreamIssues().get(0).getKey()), confirmedTasks);
             }
          }
 
@@ -1031,7 +1023,7 @@ public class CommitProcessor {
       return downstreamIssuesGroups;
    }
 
-   public User getAssignee(GitCommit upstreamCommit, Issue upstreamIssue, List<Issue> downstreamIssues) {
+   public User getAssignee(GitCommit upstreamCommit, List<Issue> upstreamIssues, List<Issue> downstreamIssues) {
       User user;
 
       user = userResolver.getUserFromEmailAddress(upstreamCommit.getAuthorEmail());
@@ -1044,20 +1036,22 @@ public class CommitProcessor {
          return user;
       }
 
-      if (upstreamIssue != null) {
-         user = userResolver.getUserFromUpstreamUsername(upstreamIssue.getAssignee());
-         if (user != null) {
-            return user;
-         }
+      if (upstreamIssues != null) {
+         for (Issue upstreamIssue : upstreamIssues) {
+            user = userResolver.getUserFromUpstreamUsername(upstreamIssue.getAssignee());
+            if (user != null) {
+               return user;
+            }
 
-         user = userResolver.getUserFromUpstreamUsername(upstreamIssue.getReporter());
-         if (user != null) {
-            return user;
-         }
+            user = userResolver.getUserFromUpstreamUsername(upstreamIssue.getReporter());
+            if (user != null) {
+               return user;
+            }
 
-         user = userResolver.getUserFromUpstreamUsername(upstreamIssue.getCreator());
-         if (user != null) {
-            return user;
+            user = userResolver.getUserFromUpstreamUsername(upstreamIssue.getCreator());
+            if (user != null) {
+               return user;
+            }
          }
       }
 

@@ -548,20 +548,27 @@ public class App {
       }
 
       try (CSVPrinter printer = new CSVPrinter(new FileWriter(payloadFile), CSVFormat.DEFAULT
-         .withHeader("state", "release", "upstreamCommit", "downstreamCommit", "author", "summary", "upstreamIssue", "downstreamIssues", "upstreamTestCoverage"))) {
+         .withHeader("state", "release", "upstreamCommit", "downstreamCommit", "author", "summary", "upstreamIssues", "downstreamIssues", "upstreamTestCoverage"))) {
 
          for (Map.Entry<GitCommit, ReleaseVersion> downstreamCommit : downstreamCommits) {
             Commit processedCommit = commits.stream().filter(commit -> downstreamCommit.getKey().getName().equals(commit.getDownstreamCommit())).findFirst().orElse(null);
 
-            printer.printRecord("DONE", downstreamCommit.getValue(), processedCommit != null ? processedCommit.getUpstreamCommit() : "", downstreamCommit.getKey().getName(), downstreamCommit.getKey().getAuthorName(), downstreamCommit.getKey().getShortMessage(),
-               processedCommit != null ? processedCommit.getUpstreamIssue() : "", processedCommit != null ? processedCommit.getDownstreamIssues().stream().map(IssueReference::getKey).collect(Collectors.joining(" ")) : "", processedCommit != null && processedCommit.getTests().size() > 0);
+            printer.printRecord("DONE", downstreamCommit.getValue(),
+               processedCommit != null ? processedCommit.getUpstreamCommit() : "", downstreamCommit.getKey().getName(),
+               downstreamCommit.getKey().getAuthorName(), downstreamCommit.getKey().getShortMessage(),
+               processedCommit != null ? processedCommit.getUpstreamIssues().stream().map(IssueReference::getKey).collect(Collectors.joining(" ")) : "",
+               processedCommit != null ? processedCommit.getDownstreamIssues().stream().map(IssueReference::getKey).collect(Collectors.joining(" ")) : "",
+               processedCommit != null && processedCommit.getTests().size() > 0);
          }
 
          for (Commit commit : commits.stream()
             .filter(commit -> (commit.getState() != Commit.State.SKIPPED && commit.getState() != Commit.State.DONE))
             .collect(Collectors.toList())) {
-            printer.printRecord(commit.getState(), commit.getRelease(), commit.getUpstreamCommit(), commit.getDownstreamCommit(), commit.getAuthor(), commit.getSummary(),
-               commit.getUpstreamIssue(), commit.getDownstreamIssues().stream().map(IssueReference::getKey).collect(Collectors.joining(" ")), commit.getTests().size() > 0);
+            printer.printRecord(commit.getState(), commit.getRelease(), commit.getUpstreamCommit(),
+               commit.getDownstreamCommit(), commit.getAuthor(), commit.getSummary(),
+               commit.getUpstreamIssues().stream().map(IssueReference::getKey).collect(Collectors.joining(" ")),
+               commit.getDownstreamIssues().stream().map(IssueReference::getKey).collect(Collectors.joining(" ")),
+               commit.getTests().size() > 0);
          }
       }
 

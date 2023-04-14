@@ -39,8 +39,9 @@ import org.mockito.Mockito;
 public class CommitProcessorTest {
 
    private final static String NO_ISSUE_KEY = "NO-ISSUE";
-   private final static String UPSTREAM_ISSUE_KEY_0 = "ARTEMIS-0";
-   private final static String DOWNSTREAM_ISSUE_KEY_0 = "ENTMQBR-0";
+   private final static String UPSTREAM_ISSUE_KEY_0 = "UP-0";
+   private final static String UPSTREAM_ISSUE_KEY_1 = "UP-1";
+   private final static String DOWNSTREAM_ISSUE_KEY_0 = "DOWN-0";
    private final static String TEST_USER_NAME = "test";
    private final static String TEST_USER_EMAIL = "test@user.com";
    private final static String TARGET_RELEASE_FORMAT = "%d.%d.%d.GA";
@@ -152,7 +153,7 @@ public class CommitProcessorTest {
       Commit commit = commitProcessor.process(upstreamCommit);
 
       Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
-      Assert.assertEquals("UPSTREAM_ISSUE_EXCLUDED", commit.getReason());
+      Assert.assertEquals("NO_VALID_UPSTREAM_ISSUES", commit.getReason());
    }
 
    @Test
@@ -176,6 +177,86 @@ public class CommitProcessorTest {
 
       Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
       Assert.assertEquals(TEST_USER_NAME, commit.getAssignee());
+   }
+
+   @Test
+   public void testCommitWithMultipleUpstreamIssues() throws Exception {
+      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + "," + UPSTREAM_ISSUE_KEY_1 + " Test message";
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName("0")
+         .setShortMessage(commitShortMessage)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue0 = new Issue().setKey(UPSTREAM_ISSUE_KEY_0);
+
+      Issue upstreamIssue1 = new Issue().setKey(UPSTREAM_ISSUE_KEY_1);
+      upstreamIssue1.getIssues().add(DOWNSTREAM_ISSUE_KEY_0);
+
+      Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
+         .setType("Bug")
+         .setTargetRelease("1.1.0.GA")
+         .setCustomer(true)
+         .setCustomerPriority(IssueCustomerPriority.HIGH);
+      downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_1);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue0);
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_1)).thenReturn(upstreamIssue1);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0, UPSTREAM_ISSUE_KEY_1));
+
+      Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
+      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn("Done");
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.TODO, commit.getState());
+   }
+
+   @Test
+   public void testCommitWithMultipleUpstreamIssuesWithoutDownstreamIssues() throws Exception {
+      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + "," + UPSTREAM_ISSUE_KEY_1 + " Test message";
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName("0")
+         .setShortMessage(commitShortMessage)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue0 = new Issue().setKey(UPSTREAM_ISSUE_KEY_0);
+      upstreamIssue0.setType("Improvement");
+
+      Issue upstreamIssue1 = new Issue().setKey(UPSTREAM_ISSUE_KEY_1);
+      upstreamIssue1.setType("Bug");
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue0);
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_1)).thenReturn(upstreamIssue1);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0, UPSTREAM_ISSUE_KEY_1));
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.NEW, commit.getState());
+      Assert.assertEquals(CommitTask.Action.STEP, commit.getTasks().get(0).getAction());
+      Assert.assertEquals(CommitTask.Type.CLONE_UPSTREAM_ISSUE, commit.getTasks().get(0).getType());
+      Assert.assertEquals(UPSTREAM_ISSUE_KEY_1, commit.getTasks().get(0).getArgs().get("issueKey"));
    }
 
    @Test
