@@ -38,13 +38,23 @@ import org.mockito.Mockito;
 
 public class CommitProcessorTest {
 
+   private final static String COMMIT_NAME_0 = "0";
    private final static String NO_ISSUE_KEY = "NO-ISSUE";
    private final static String UPSTREAM_ISSUE_KEY_0 = "UP-0";
    private final static String UPSTREAM_ISSUE_KEY_1 = "UP-1";
    private final static String DOWNSTREAM_ISSUE_KEY_0 = "DOWN-0";
    private final static String TEST_USER_NAME = "test";
    private final static String TEST_USER_EMAIL = "test@user.com";
+
+   private final static String TEST_MESSAGE = "Test message";
+   private final static String TEST_MESSAGE_NO_ISSUE_KEY = NO_ISSUE_KEY + " " + TEST_MESSAGE;
+   private final static String TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0 = UPSTREAM_ISSUE_KEY_0 + " " + TEST_MESSAGE;
+   private final static String TEST_MESSAGE_UPSTREAM_ISSUE_KEY_1 = UPSTREAM_ISSUE_KEY_1 + " " + TEST_MESSAGE;
    private final static String TARGET_RELEASE_FORMAT = "%d.%d.%d.GA";
+
+   private final static String ISSUE_TYPE_BUG = "Bug";
+   private static final String ISSUE_RESOLUTION_DONE = "Done";
+   private static final String ISSUE_LABEL_NO_BACKPORT_NEEDED = "NO-BACKPORT-NEEDED";
 
    @Rule
    public TemporaryFolder testFolder = new TemporaryFolder();
@@ -85,9 +95,9 @@ public class CommitProcessorTest {
 
    @Test
    public void testCommitNotRequiringReleaseIssue() throws Exception {
-      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + " Test message";
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
       MockGitCommit upstreamCommit = new MockGitCommit()
-         .setName("0")
+         .setName(COMMIT_NAME_0)
          .setShortMessage(commitShortMessage)
          .setAuthorEmail(TEST_USER_EMAIL);
 
@@ -95,20 +105,19 @@ public class CommitProcessorTest {
       upstreamIssue.getIssues().add(DOWNSTREAM_ISSUE_KEY_0);
 
       Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
-         .setType("Bug")
+         .setType(ISSUE_TYPE_BUG)
          .setTargetRelease("1.0.0.GA")
          .setCustomer(true)
          .setCustomerPriority(IssueCustomerPriority.HIGH)
-         .setResolution("Done")
-         .setState("Closed");
+         .setResolution(ISSUE_RESOLUTION_DONE);
       downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
       Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
 
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
-      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
-      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn("Done");
+      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
 
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
@@ -126,10 +135,53 @@ public class CommitProcessorTest {
    }
 
    @Test
-   public void testCommitWithExcludedUpstreamIssue() throws Exception {
-      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + " Test message";
+   public void testCommitWithBlockedUpstreamIssue() throws Exception {
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
       MockGitCommit upstreamCommit = new MockGitCommit()
-         .setName("0")
+         .setName(COMMIT_NAME_0)
+         .setShortMessage(commitShortMessage)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0);
+      upstreamIssue.getIssues().add(DOWNSTREAM_ISSUE_KEY_0);
+
+      Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
+         .setType(ISSUE_TYPE_BUG)
+         .setCustomer(true)
+         .setCustomerPriority(IssueCustomerPriority.HIGH)
+         .setResolution(ISSUE_RESOLUTION_DONE);
+      downstreamIssue.getLabels().add(ISSUE_LABEL_NO_BACKPORT_NEEDED);
+      downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+
+      Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
+      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
+      Mockito.when(downstreamIssueManager.getIssueLabelNoBackportNeeded()).thenReturn(ISSUE_LABEL_NO_BACKPORT_NEEDED);
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
+      Assert.assertEquals("UPSTREAM_ISSUE_BACKPORT_BLOCKED", commit.getReason());
+   }
+
+   @Test
+   public void testCommitWithExcludedUpstreamIssue() throws Exception {
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName(COMMIT_NAME_0)
          .setShortMessage(commitShortMessage)
          .setAuthorEmail(TEST_USER_EMAIL);
 
@@ -159,8 +211,8 @@ public class CommitProcessorTest {
    @Test
    public void testCommitWithoutUpstreamIssue() throws Exception {
       MockGitCommit upstreamCommit = new MockGitCommit()
-         .setName("0")
-         .setShortMessage(NO_ISSUE_KEY + " Test message")
+         .setName(COMMIT_NAME_0)
+         .setShortMessage(TEST_MESSAGE_NO_ISSUE_KEY)
          .setAuthorEmail(TEST_USER_EMAIL);
 
       CommitProcessor commitProcessor = new CommitProcessor(
@@ -181,9 +233,9 @@ public class CommitProcessorTest {
 
    @Test
    public void testCommitWithMultipleUpstreamIssues() throws Exception {
-      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + "," + UPSTREAM_ISSUE_KEY_1 + " Test message";
+      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + "," + UPSTREAM_ISSUE_KEY_1 + " " + TEST_MESSAGE;
       MockGitCommit upstreamCommit = new MockGitCommit()
-         .setName("0")
+         .setName(COMMIT_NAME_0)
          .setShortMessage(commitShortMessage)
          .setAuthorEmail(TEST_USER_EMAIL);
 
@@ -193,7 +245,7 @@ public class CommitProcessorTest {
       upstreamIssue1.getIssues().add(DOWNSTREAM_ISSUE_KEY_0);
 
       Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
-         .setType("Bug")
+         .setType(ISSUE_TYPE_BUG)
          .setTargetRelease("1.1.0.GA")
          .setCustomer(true)
          .setCustomerPriority(IssueCustomerPriority.HIGH);
@@ -204,8 +256,8 @@ public class CommitProcessorTest {
       Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0, UPSTREAM_ISSUE_KEY_1));
 
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
-      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
-      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn("Done");
+      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
 
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
@@ -224,9 +276,9 @@ public class CommitProcessorTest {
 
    @Test
    public void testCommitWithMultipleUpstreamIssuesWithoutDownstreamIssues() throws Exception {
-      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + "," + UPSTREAM_ISSUE_KEY_1 + " Test message";
+      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + "," + UPSTREAM_ISSUE_KEY_1 + " " + TEST_MESSAGE;
       MockGitCommit upstreamCommit = new MockGitCommit()
-         .setName("0")
+         .setName(COMMIT_NAME_0)
          .setShortMessage(commitShortMessage)
          .setAuthorEmail(TEST_USER_EMAIL);
 
@@ -234,12 +286,12 @@ public class CommitProcessorTest {
       upstreamIssue0.setType("Improvement");
 
       Issue upstreamIssue1 = new Issue().setKey(UPSTREAM_ISSUE_KEY_1);
-      upstreamIssue1.setType("Bug");
+      upstreamIssue1.setType(ISSUE_TYPE_BUG);
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue0);
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_1)).thenReturn(upstreamIssue1);
       Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0, UPSTREAM_ISSUE_KEY_1));
-      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
 
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
@@ -261,24 +313,24 @@ public class CommitProcessorTest {
 
    @Test
    public void testCommitIncludedInRevertingChain() throws Exception {
-      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + " Test message";
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
       MockGitCommit revertedUpstreamCommit = new MockGitCommit()
-         .setName("UP-0")
+         .setName(UPSTREAM_ISSUE_KEY_0)
          .setShortMessage(commitShortMessage)
          .setAuthorEmail(TEST_USER_EMAIL);
 
       MockGitCommit revertedDownstreamCommit = new MockGitCommit()
-         .setName("DOWN-0")
-         .setShortMessage(UPSTREAM_ISSUE_KEY_0 + " Test message")
+         .setName(DOWNSTREAM_ISSUE_KEY_0)
+         .setShortMessage(TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0)
          .setFullMessage("downstream: " + DOWNSTREAM_ISSUE_KEY_0)
          .setAuthorEmail(TEST_USER_EMAIL);
 
       MockGitCommit revertingUpstreamCommit = new MockGitCommit()
-         .setName("UP-1")
+         .setName(UPSTREAM_ISSUE_KEY_1)
          .setShortMessage("This reverts commit 0.")
          .setAuthorEmail(TEST_USER_EMAIL);
 
-      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0).setType("Bug");
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0).setType(ISSUE_TYPE_BUG);
 
       List<String> upstreamRevertingChain = new ArrayList<>();
       upstreamRevertingChain.add(revertingUpstreamCommit.getName());
@@ -304,7 +356,7 @@ public class CommitProcessorTest {
       Mockito.when(gitRepository.resolveCommit(revertingUpstreamCommit.getName())).thenReturn(revertingUpstreamCommit);
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
-      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
       Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
 
       Commit revertingCommit = commitProcessor.process(revertingUpstreamCommit);
@@ -339,7 +391,7 @@ public class CommitProcessorTest {
       File downstreamRepoDir = testFolder.newFolder("downstream-repo");
       FileUtils.copyDirectory(upstreamRepoDir, downstreamRepoDir);
 
-      String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + " Test message";
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
       CommandExecutor.execute("git commit --allow-empty -m 'NO-ISSUE test'", upstreamRepoDir);
       CommandExecutor.execute("sed -i.bak 's/Unit test for simple App./Unit test for test App./' src/test/java/org/example/AppTest.java", upstreamRepoDir);
       CommandExecutor.execute("git commit --all --message '" + commitShortMessage + "'", upstreamRepoDir);
@@ -374,11 +426,11 @@ public class CommitProcessorTest {
       upstreamIssue.getIssues().add(DOWNSTREAM_ISSUE_KEY_0);
 
       Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
-         .setType("Bug")
+         .setType(ISSUE_TYPE_BUG)
          .setTargetRelease("1.0.0.GA")
          .setCustomer(true)
          .setCustomerPriority(IssueCustomerPriority.HIGH)
-         .setState("Done");
+         .setState(ISSUE_RESOLUTION_DONE);
       downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
@@ -387,8 +439,8 @@ public class CommitProcessorTest {
       IssueStateMachine downstreamIssueStateMachine = Mockito.mock(IssueStateMachine.class);
       Mockito.when(downstreamIssueStateMachine.getStateIndex(Mockito.any())).thenReturn(0);
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
-      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn("Bug");
-      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn("Done");
+      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
       Mockito.when(downstreamIssueManager.getIssueLabelUpstreamTestCoverage()).thenReturn("upstream-test-coverage");
       Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
 

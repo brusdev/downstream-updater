@@ -632,9 +632,10 @@ public class CommitProcessor {
             targetReleaseVersion = null;
          }
 
-         if (targetReleaseVersion != null && downstreamIssue.getLabels().contains(downstreamIssueManager.getIssueLabelNoBackportNeeded()) &&
-            targetReleaseVersion.getMajor() == candidateReleaseVersion.getMajor() &&
-            targetReleaseVersion.getMinor() == candidateReleaseVersion.getMinor()) {
+         if (downstreamIssue.getLabels().contains(downstreamIssueManager.getIssueLabelNoBackportNeeded()) &&
+            ((targetReleaseVersion == null && downstreamIssue.getTargetRelease() == null) ||
+               (targetReleaseVersion != null && targetReleaseVersion.getMajor() == candidateReleaseVersion.getMajor() &&
+                  targetReleaseVersion.getMinor() == candidateReleaseVersion.getMinor()))) {
             return true;
          }
       }
