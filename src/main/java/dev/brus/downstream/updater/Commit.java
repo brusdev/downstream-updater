@@ -20,6 +20,8 @@ package dev.brus.downstream.updater;
 import java.util.ArrayList;
 import java.util.List;
 
+import dev.brus.downstream.updater.issue.IssueReference;
+
 public class Commit {
    public enum State {
       /**
@@ -57,10 +59,8 @@ public class Commit {
 
    private String assignee;
    private Commit.State state;
-   private String upstreamIssue;
-   private String upstreamIssueUrl;
-   private List<String> downstreamIssues;
-   private String downstreamIssuesBaseUrl;
+   private IssueReference upstreamIssue;
+   private List<IssueReference> downstreamIssues;
    private String upstreamCommit;
    private String upstreamCommitDir;
    private String upstreamCommitUrl;
@@ -141,16 +141,16 @@ public class Commit {
       return this;
    }
 
-   public String getUpstreamIssue() {
+   public IssueReference getUpstreamIssue() {
       return upstreamIssue;
    }
 
-   public Commit setUpstreamIssue(String upstreamIssue) {
+   public Commit setUpstreamIssue(IssueReference upstreamIssue) {
       this.upstreamIssue = upstreamIssue;
       return this;
    }
 
-   public List<String> getDownstreamIssues() {
+   public List<IssueReference> getDownstreamIssues() {
       return downstreamIssues;
    }
 
@@ -178,24 +178,6 @@ public class Commit {
 
    public Commit setRelease(String release) {
       this.release = release;
-      return this;
-   }
-
-   public String getUpstreamIssueUrl() {
-      return upstreamIssueUrl;
-   }
-
-   public Commit setUpstreamIssueUrl(String upstreamIssueUrl) {
-      this.upstreamIssueUrl = upstreamIssueUrl;
-      return this;
-   }
-
-   public String getDownstreamIssuesBaseUrl() {
-      return downstreamIssuesBaseUrl;
-   }
-
-   public Commit setDownstreamIssuesBaseUrl(String downstreamIssuesBaseUrl) {
-      this.downstreamIssuesBaseUrl = downstreamIssuesBaseUrl;
       return this;
    }
 

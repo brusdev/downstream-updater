@@ -23,6 +23,7 @@ import dev.brus.downstream.updater.issue.DownstreamIssueManager;
 import dev.brus.downstream.updater.issue.Issue;
 import dev.brus.downstream.updater.issue.IssueCustomerPriority;
 import dev.brus.downstream.updater.issue.IssueManager;
+import dev.brus.downstream.updater.issue.IssueReference;
 import dev.brus.downstream.updater.issue.IssueSecurityImpact;
 import dev.brus.downstream.updater.project.ProjectConfig;
 import dev.brus.downstream.updater.user.User;
@@ -305,7 +306,6 @@ public class CommitProcessor {
          .setUpstreamCommitUrl(upstreamRemoteUri.replace(".git", "/commit/" + upstreamCommit.getName()))
          .setDownstreamCommit(cherryPickedCommit != null ? cherryPickedCommit.getKey().getName() : null)
          .setDownstreamCommitUrl(cherryPickedCommit != null ? downstreamRemoteUri.replace(".git", "/commit/" + cherryPickedCommit.getKey().getName()) : null)
-         .setDownstreamIssuesBaseUrl(downstreamIssueManager.getIssueBaseUrl())
          .setSummary(upstreamCommit.getShortMessage())
          .setRelease(candidateReleaseVersion.toString())
          .setTests(getCommitTests(upstreamCommit))
@@ -354,8 +354,6 @@ public class CommitProcessor {
 
       Issue upstreamIssue = null;
       if (upstreamIssueKey != null) {
-         commit.setUpstreamIssue(upstreamIssueKey);
-
          if (upstreamIssueKeys.size() > 1 && cherryPickedCommit == null) {
             logger.warn("SKIPPED because the commit message includes multiple upstream issue keys");
             commit.setState(Commit.State.INVALID).setReason("MULTIPLE_UPSTREAM_ISSUES");
@@ -370,7 +368,7 @@ public class CommitProcessor {
             return commit;
          }
 
-         commit.setUpstreamIssueUrl(upstreamIssue.getUrl());
+         commit.setUpstreamIssue(new IssueReference(upstreamIssue));
       }
 
       //Skip commits of reverting chains only if they are even and none is cherry-picked
@@ -436,7 +434,7 @@ public class CommitProcessor {
          for (List<Issue> downstreamIssuesGroup : downstreamIssuesGroups.values()) {
             for (Issue downstreamIssue : downstreamIssuesGroup) {
                allDownstreamIssues.add(downstreamIssue);
-               commit.getDownstreamIssues().add(downstreamIssue.getKey());
+               commit.getDownstreamIssues().add(new IssueReference(downstreamIssue));
             }
          }
       }
@@ -687,7 +685,7 @@ public class CommitProcessor {
          if (commit.getUpstreamIssue() != null && !downstreamIssue.getIssues().contains(commit.getUpstreamIssue())) {
             if (checkIncompleteCommits) {
                executed &= processCommitTask(commit, release, candidate, CommitTask.Type.ADD_UPSTREAM_ISSUE_TO_DOWNSTREAM_ISSUE,
-                  CommitTask.Action.STEP, Map.of("issueKey", downstreamIssue.getKey(), "upstreamIssue", commit.getUpstreamIssue()), confirmedTasks);
+                  CommitTask.Action.STEP, Map.of("issueKey", downstreamIssue.getKey(), "upstreamIssue", commit.getUpstreamIssue().getKey()), confirmedTasks);
             }
          }
 

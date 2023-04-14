@@ -10,6 +10,7 @@ import dev.brus.downstream.updater.issue.Issue;
 import dev.brus.downstream.updater.issue.IssueCustomerPriority;
 import dev.brus.downstream.updater.issue.IssueManager;
 import dev.brus.downstream.updater.issue.IssueManagerFactory;
+import dev.brus.downstream.updater.issue.IssueReference;
 import dev.brus.downstream.updater.issue.IssueSecurityImpact;
 import dev.brus.downstream.updater.project.Project;
 import dev.brus.downstream.updater.project.ProjectConfig;
@@ -35,7 +36,6 @@ import java.nio.charset.Charset;
 import java.util.AbstractMap;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -554,14 +554,14 @@ public class App {
             Commit processedCommit = commits.stream().filter(commit -> downstreamCommit.getKey().getName().equals(commit.getDownstreamCommit())).findFirst().orElse(null);
 
             printer.printRecord("DONE", downstreamCommit.getValue(), processedCommit != null ? processedCommit.getUpstreamCommit() : "", downstreamCommit.getKey().getName(), downstreamCommit.getKey().getAuthorName(), downstreamCommit.getKey().getShortMessage(),
-               processedCommit != null ? processedCommit.getUpstreamIssue() : "", String.join(" ", processedCommit != null ? processedCommit.getDownstreamIssues() : Collections.emptyList()), processedCommit != null && processedCommit.getTests().size() > 0);
+               processedCommit != null ? processedCommit.getUpstreamIssue() : "", processedCommit != null ? processedCommit.getDownstreamIssues().stream().map(IssueReference::getKey).collect(Collectors.joining(" ")) : "", processedCommit != null && processedCommit.getTests().size() > 0);
          }
 
          for (Commit commit : commits.stream()
             .filter(commit -> (commit.getState() != Commit.State.SKIPPED && commit.getState() != Commit.State.DONE))
             .collect(Collectors.toList())) {
             printer.printRecord(commit.getState(), commit.getRelease(), commit.getUpstreamCommit(), commit.getDownstreamCommit(), commit.getAuthor(), commit.getSummary(),
-               commit.getUpstreamIssue(), String.join(" ", commit.getDownstreamIssues()), commit.getTests().size() > 0);
+               commit.getUpstreamIssue(), commit.getDownstreamIssues().stream().map(IssueReference::getKey).collect(Collectors.joining(" ")), commit.getTests().size() > 0);
          }
       }
 
