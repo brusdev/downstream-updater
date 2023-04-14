@@ -55,6 +55,7 @@ public class CommitProcessorTest {
    private final static String ISSUE_TYPE_BUG = "Bug";
    private static final String ISSUE_RESOLUTION_DONE = "Done";
    private static final String ISSUE_LABEL_NO_BACKPORT_NEEDED = "NO-BACKPORT-NEEDED";
+   private static final String ISSUE_STATE_DEV_COMPLETE = "Dev Complete";
 
    @Rule
    public TemporaryFolder testFolder = new TemporaryFolder();
@@ -309,6 +310,67 @@ public class CommitProcessorTest {
       Assert.assertEquals(CommitTask.Action.STEP, commit.getTasks().get(0).getAction());
       Assert.assertEquals(CommitTask.Type.CLONE_UPSTREAM_ISSUE, commit.getTasks().get(0).getType());
       Assert.assertEquals(UPSTREAM_ISSUE_KEY_1, commit.getTasks().get(0).getArgs().get("issueKey"));
+   }
+
+   @Test
+   public void testCommitCherryPicked() throws Exception {
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName(UPSTREAM_ISSUE_KEY_0)
+         .setShortMessage(TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      MockGitCommit downstreamCommit = new MockGitCommit()
+         .setName(DOWNSTREAM_ISSUE_KEY_0)
+         .setShortMessage(TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0)
+         .setFullMessage("downstream: " + DOWNSTREAM_ISSUE_KEY_0)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0).setType(ISSUE_TYPE_BUG);
+
+      Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
+         .setType(ISSUE_TYPE_BUG)
+         .setTargetRelease("1.1.0.GA")
+         .setCustomer(true)
+         .setCustomerPriority(IssueCustomerPriority.HIGH);
+      downstreamIssue.getLabels().add(ISSUE_STATE_DEV_COMPLETE);
+      downstreamIssue.getLabels().add(releaseVersion.getCandidate());
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+      commitProcessor.setCherryPickedCommits(Collections.singletonMap(UPSTREAM_ISSUE_KEY_0, new AbstractMap.SimpleEntry<>(downstreamCommit, releaseVersion)));
+
+      Mockito.when(gitRepository.resolveCommit(upstreamCommit.getName())).thenReturn(upstreamCommit);
+      Mockito.when(gitRepository.resolveCommit(downstreamCommit.getName())).thenReturn(downstreamCommit);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(Mockito.anyString())).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+
+      Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
+      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
+      Mockito.when(downstreamIssueManager.getIssueStateDevComplete()).thenReturn(ISSUE_STATE_DEV_COMPLETE);
+      Mockito.when(downstreamIssueManager.parseIssueKeys(Mockito.anyString())).thenReturn(Arrays.asList(DOWNSTREAM_ISSUE_KEY_0));
+
+      IssueStateMachine downstreamIssueStateMachine = Mockito.mock(IssueStateMachine.class);
+      Mockito.when(downstreamIssueStateMachine.getStateIndex(Mockito.any())).thenReturn(0);
+      Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
+
+      Commit incompleteCommit = commitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.INCOMPLETE, incompleteCommit.getState());
+
+      downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
+
+      Commit doneCommit = commitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.DONE, doneCommit.getState());
    }
 
    @Test

@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -399,7 +400,7 @@ public class CommitProcessor {
          Matcher downstreamLineMatcher = downstreamLinePattern.matcher(cherryPickedCommit.getKey().getFullMessage());
 
          if (downstreamLineMatcher.find()) {
-            List<String> downstreamCommitIssueKeys = upstreamIssueManager.parseIssueKeys(downstreamLineMatcher.group());
+            List<String> downstreamCommitIssueKeys = downstreamIssueManager.parseIssueKeys(downstreamLineMatcher.group());
 
             for (String downstreamIssueKey : downstreamCommitIssueKeys) {
                Issue downstreamIssue = downstreamIssueKey != null ? downstreamIssueManager.getIssue(downstreamIssueKey) : null;
@@ -675,7 +676,7 @@ public class CommitProcessor {
          }
 
          //Check if the downstream issue has any upstream issues
-         if (!downstreamIssue.getIssues().stream().anyMatch(commit.getUpstreamIssues()::contains)) {
+         if (!commit.getUpstreamIssues().stream().anyMatch(issue -> downstreamIssue.getIssues().contains(issue.getKey()))) {
             if (checkIncompleteCommits) {
                executed &= processCommitTask(commit, release, candidate, CommitTask.Type.ADD_UPSTREAM_ISSUE_TO_DOWNSTREAM_ISSUE,
                   CommitTask.Action.STEP, Map.of("issueKey", downstreamIssue.getKey(), "upstreamIssue", commit.getUpstreamIssues().get(0).getKey()), confirmedTasks);
