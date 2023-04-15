@@ -50,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -842,7 +841,10 @@ public class CommitProcessor {
          String issueKey = commitTask.getArgs().get("issueKey");
 
          if (!projectConfig.getProject().getStream(projectStreamName).getExcludedUpstreamIssues().contains(issueKey)) {
-            projectConfig.addExcludedUpstreamIssue(issueKey, projectStreamName);
+            projectConfig.addExcludedUpstreamIssue(issueKey, projectStreamName, 3);
+         } else {
+            logger.info("Upstream issue " + issueKey + " already excluded from " +
+               projectConfig.getProject().getName() + "/" + projectStreamName);
          }
       } else {
          throw new IllegalStateException("Commit task type not supported: " + commitTask.getType());

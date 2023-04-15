@@ -1,13 +1,17 @@
 package dev.brus.downstream.updater.project;
 
 import java.io.File;
+import java.io.IOException;
 
 import dev.brus.downstream.updater.git.GitRepository;
 import dev.brus.downstream.updater.git.JGitRepository;
 import dev.brus.downstream.updater.util.CommandExecutor;
 import org.apache.commons.io.FilenameUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ProjectConfig {
+   private final static Logger logger = LoggerFactory.getLogger(ProjectConfig.class);
    private String repository;
    String repositoryAuthString;
    private String branch;
@@ -77,6 +81,23 @@ public class ProjectConfig {
       project = Project.load(new File(gitRepository.getDirectory(), path));
    }
 
+   public void addExcludedUpstreamIssue(String issueKey, String streamName, int retries) throws Exception {
+      while (true) {
+         try {
+            retries--;
+            addExcludedUpstreamIssue(issueKey, streamName);
+            break;
+         } catch (Exception e) {
+            logger.debug("Failed to exclude upstream issue " + issueKey + ": " + e);
+            if (retries == 0) {
+               throw new IOException("Failed to exclude upstream issue " + issueKey + ". Maximum retries reached.", e);
+            } else {
+               Thread.sleep((long)(3000 * Math.random()));
+            }
+         }
+      }
+   }
+
    public void addExcludedUpstreamIssue(String issueKey, String streamName) throws Exception {
       load();
 
@@ -101,6 +122,8 @@ public class ProjectConfig {
       } else {
          gitRepository.clone(repository, repoDir);
       }
+
+      gitRepository.resetHard();
 
       if (gitRepository.branchExists(branch)) {
          // To support tags
