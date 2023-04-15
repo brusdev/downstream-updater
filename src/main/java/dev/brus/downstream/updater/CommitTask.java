@@ -38,15 +38,9 @@ public class CommitTask {
       FAILED,
    }
 
-   public enum Action {
-      STEP,
-      FORCE,
-      SKIP,
-   }
-
    private CommitTask.Type type;
    private CommitTask.State state;
-   private CommitTask.Action action;
+   private Commit.Action action;
    private Map<String, String> args = Collections.emptyMap();
    private String command;
    private String result;
@@ -79,11 +73,11 @@ public class CommitTask {
       return this;
    }
 
-   public Action getAction() {
+   public Commit.Action getAction() {
       return action;
    }
 
-   public CommitTask setAction(Action action) {
+   public CommitTask setAction(Commit.Action action) {
       this.action = action;
       return this;
    }
@@ -104,5 +98,10 @@ public class CommitTask {
    public CommitTask setResult(String result) {
       this.result = result;
       return this;
+   }
+
+   public CommitTask() {
+      state = State.NEW;
+      action = Commit.Action.NONE;
    }
 }

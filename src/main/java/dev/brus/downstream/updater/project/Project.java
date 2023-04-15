@@ -1,7 +1,16 @@
 package dev.brus.downstream.updater.project;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.representer.Representer;
 
 public class Project {
 
@@ -129,5 +138,16 @@ public class Project {
 
    public ProjectStream getStream(String name) {
       return streams.stream().filter(stream -> name.equals(stream.getName())).findFirst().get();
+   }
+
+   public static Project load(File file) throws Exception {
+      try (InputStream projectConfigInputStream = new FileInputStream(file)) {
+         Constructor constructor = new Constructor(Project.class, new LoaderOptions());
+         Representer representer = new Representer(new DumperOptions());
+         representer.getPropertyUtils().setSkipMissingProperties(true);
+         Yaml yaml = new Yaml(constructor, representer);
+
+         return yaml.load(projectConfigInputStream);
+      }
    }
 }

@@ -30,7 +30,7 @@ public interface GitRepository {
 
    GitCommit resolveCommit(String name) throws Exception;
 
-   boolean cherryPick(GitCommit commit) throws Exception;
+   void cherryPick(GitCommit commit) throws Exception;
 
    void resetHard() throws Exception;
 

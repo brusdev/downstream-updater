@@ -88,7 +88,6 @@ public class App {
    private static final String CHECK_INCOMPLETE_COMMITS_OPTION = "check-incomplete-commits";
    private static final String CHECK_COMMAND_OPTION = "check-command";
    private static final String CHECK_TESTS_COMMAND_OPTION = "check-tests-command";
-   private static final String DRY_RUN_OPTION = "dry-run";
 
    private static final String DEFAULT_USER_NAME = "rh-messaging-ci";
    private static final String DEFAULT_USER_EMAIL = "messaging-infra@redhat.com";
@@ -141,7 +140,6 @@ public class App {
       parser.addOption(null, CHECK_INCOMPLETE_COMMITS_OPTION, false, false, true, "check tasks of cherry-picked commits");
       parser.addOption(null, CHECK_COMMAND_OPTION, false, true, true, "command to check cherry-picked commits");
       parser.addOption(null, CHECK_TESTS_COMMAND_OPTION, false, true, true, "command to test cherry-picked commits with tests");
-      parser.addOption(null, DRY_RUN_OPTION, false, false, false, "dry run");
 
       CommandLine line;
 
@@ -210,8 +208,6 @@ public class App {
       String excludedUpstreamIssueKeys = line.getOptionValue(EXCLUDED_UPSTREAM_ISSUES_OPTION, String.join(",", projectStream.getExcludedUpstreamIssues()));
 
       boolean checkIncompleteCommits = Boolean.parseBoolean(line.getOptionValue(CHECK_INCOMPLETE_COMMITS_OPTION, "true"));
-
-      boolean dryRun = line.hasOption(DRY_RUN_OPTION);
 
       String checkCommand = line.getOptionValue(CHECK_COMMAND_OPTION, project.getCheckCommand());
 
@@ -473,7 +469,6 @@ public class App {
       commitProcessor.setDownstreamIssuesCustomerPriority(downstreamIssuesCustomerPriority);
       commitProcessor.setDownstreamIssuesSecurityImpact(downstreamIssuesSecurityImpact);
       commitProcessor.setCheckIncompleteCommits(checkIncompleteCommits);
-      commitProcessor.setDryRun(dryRun);
       commitProcessor.setCheckCommand(checkCommand);
       commitProcessor.setCheckTestsCommand(checkTestsCommand);
       commitProcessor.setCommitsDir(commitsDir);

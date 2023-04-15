@@ -202,6 +202,15 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
 
          putIssue(issueKey, updatingIssueObject);
       }
+
+      Issue issue = issues.get(issueKey);
+      if (issue != null) {
+         for (String label : labels) {
+            if (!issue.getLabels().contains(label)) {
+               issue.getLabels().add(label);
+            }
+         }
+      }
    }
 
    @Override
@@ -252,6 +261,15 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
 
          putIssue(issueKey, updatingIssueObject, 3);
       }
+
+      Issue issue = issues.get(issueKey);
+      if (issue != null) {
+         for (String upstreamIssue : upstreamIssues) {
+            if (!issue.getIssues().contains(upstreamIssue)) {
+               issue.getIssues().add(upstreamIssue);
+            }
+         }
+      }
    }
 
    @Override
@@ -272,6 +290,13 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       }
 
       putIssue(toIssueKey, updatingIssueObject);
+
+      Issue fromIssue = issues.get(fromIssueKey);
+      Issue toIssue = issues.get(toIssueKey);
+      if (fromIssue != null && toIssue != null) {
+         toIssue.getIssues().clear();
+         toIssue.getIssues().addAll(fromIssue.getIssues());
+      }
    }
 
    @Override
@@ -338,6 +363,11 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       }
 
       putIssue(issueKey, updatingIssueObject);
+
+      Issue issue = issues.get(issueKey);
+      if (issue != null) {
+         issue.setTargetRelease(targetRelease);
+      }
    }
 
    private void putIssue(String issueKey, JsonObject issueObject, int retries) throws Exception {
@@ -387,6 +417,11 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
                break;
             }
          }
+      }
+
+      Issue issue = issues.get(issueKey);
+      if (issue != null) {
+         issue.setState(finalStatus);
       }
    }
 

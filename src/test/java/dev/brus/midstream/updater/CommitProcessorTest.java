@@ -307,7 +307,7 @@ public class CommitProcessorTest {
       Commit commit = commitProcessor.process(upstreamCommit);
 
       Assert.assertEquals(Commit.State.NEW, commit.getState());
-      Assert.assertEquals(CommitTask.Action.STEP, commit.getTasks().get(0).getAction());
+      Assert.assertEquals(Commit.Action.STEP, commit.getTasks().get(0).getAction());
       Assert.assertEquals(CommitTask.Type.CLONE_UPSTREAM_ISSUE, commit.getTasks().get(0).getType());
       Assert.assertEquals(UPSTREAM_ISSUE_KEY_1, commit.getTasks().get(0).getArgs().get("issueKey"));
    }
@@ -478,9 +478,12 @@ public class CommitProcessorTest {
             setUpstreamCommit(commit.getName()).
             setTasks(Collections.singletonList(
             new CommitTask().
+               setAction(commit.getShortMessage().startsWith(NO_ISSUE_KEY) ?
+               Commit.Action.FORCE : Commit.Action.STEP).
                setType(CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT).
                setArgs(commit.getShortMessage().startsWith(NO_ISSUE_KEY) ?
-               Collections.emptyMap() : Map.of("downstreamIssues", DOWNSTREAM_ISSUE_KEY_0))));
+               Map.of("upstreamCommit", commit.getName()) :
+               Map.of("upstreamCommit", commit.getName(), "downstreamIssues", DOWNSTREAM_ISSUE_KEY_0))));
          confirmedCommits.put(commit.getName(), confirmedCommit);
       }
 

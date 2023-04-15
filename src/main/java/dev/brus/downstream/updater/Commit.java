@@ -23,6 +23,13 @@ import java.util.List;
 import dev.brus.downstream.updater.issue.IssueReference;
 
 public class Commit {
+   public enum Action {
+      NONE,
+      STEP,
+      FORCE,
+      SKIP,
+   }
+
    public enum State {
       /**
        * The upstream commit is a bug but the downstream issue doesn't exist or its target release doesn't match,
@@ -54,6 +61,7 @@ public class Commit {
 
    private String assignee;
    private Commit.State state;
+   private Commit.Action action;
    private List<IssueReference> upstreamIssues;
    private List<IssueReference> downstreamIssues;
    private String upstreamCommit;
@@ -69,6 +77,8 @@ public class Commit {
    private List<CommitTask> tasks;
 
    public Commit() {
+      state = State.NEW;
+      action = Action.NONE;
       upstreamIssues = new ArrayList<>();
       downstreamIssues = new ArrayList<>();
       tests = new ArrayList<>();
@@ -83,6 +93,16 @@ public class Commit {
       this.assignee = assignee;
       return this;
    }
+
+   public Action getAction() {
+      return action;
+   }
+
+   public Commit setAction(Action action) {
+      this.action = action;
+      return this;
+   }
+
    public List<String> getTests() {
       return tests;
    }

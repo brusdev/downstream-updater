@@ -1,18 +1,11 @@
 package dev.brus.downstream.updater.project;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
 
 import dev.brus.downstream.updater.git.GitRepository;
 import dev.brus.downstream.updater.git.JGitRepository;
 import dev.brus.downstream.updater.util.CommandExecutor;
 import org.apache.commons.io.FilenameUtils;
-import org.yaml.snakeyaml.DumperOptions;
-import org.yaml.snakeyaml.LoaderOptions;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.Constructor;
-import org.yaml.snakeyaml.representer.Representer;
 
 public class ProjectConfig {
    private String repository;
@@ -81,18 +74,12 @@ public class ProjectConfig {
    public void load() throws Exception {
       loadRepository();
 
-      File projectConfigFile = getProjectConfigFile();
-      try (InputStream projectConfigInputStream = new FileInputStream(projectConfigFile)) {
-         Constructor constructor = new Constructor(Project.class, new LoaderOptions());
-         Representer representer = new Representer(new DumperOptions());
-         representer.getPropertyUtils().setSkipMissingProperties(true);
-         Yaml yaml = new Yaml(constructor, representer);
-
-         project = yaml.load(projectConfigInputStream);
-      }
+      project = Project.load(new File(gitRepository.getDirectory(), path));
    }
 
    public void addExcludedUpstreamIssue(String issueKey, String streamName) throws Exception {
+      load();
+
       CommandExecutor.execute("yq -i '(.streams[] | select(.name == \"" + streamName
          + "\" ) | .excludedUpstreamIssues) += [\"" + issueKey + "\"] ' " + path,
          gitRepository.getDirectory(), null);
@@ -100,6 +87,8 @@ public class ProjectConfig {
       gitRepository.add(path);
       gitRepository.commit("Exclude " + issueKey + " from " + project.getName() + " " + streamName);
       gitRepository.push("origin", branch);
+
+      project.getStream(streamName).getExcludedUpstreamIssues().add(issueKey);
    }
 
    private void loadRepository() throws Exception {
@@ -123,9 +112,5 @@ public class ProjectConfig {
       }
       gitRepository.branchCreate(branch, "origin/" + branch);
       gitRepository.checkout(branch);
-   }
-
-   private File getProjectConfigFile() {
-      return new File(gitRepository.getDirectory(), path);
    }
 }

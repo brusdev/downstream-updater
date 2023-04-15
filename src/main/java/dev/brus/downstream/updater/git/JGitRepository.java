@@ -21,7 +21,9 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.transport.CredentialsProvider;
+import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
+import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
@@ -96,20 +98,19 @@ public class JGitRepository implements GitRepository {
       return new JGitCommit(revCommit);
    }
 
-   public boolean cherryPick(GitCommit commit) throws Exception {
+   public void cherryPick(GitCommit commit) throws Exception {
       CherryPickResult cherryPickResult = git.cherryPick().include(((JGitCommit)commit).getRevCommit()).setNoCommit(true).call();
 
       // Try the git command if JGit fails
       if (cherryPickResult.getStatus() == CherryPickResult.CherryPickStatus.CONFLICTING) {
          resetHard();
 
-         int exitCode = CommandExecutor.tryExecute("git cherry-pick --no-commit " + commit.getName(),
-            getDirectory(), null);
-
-         return exitCode == 0;
+         CommandExecutor.execute("git cherry-pick --no-commit " + commit.getName(), getDirectory(), null);
       }
 
-      return cherryPickResult.getStatus() == CherryPickResult.CherryPickStatus.OK;
+      if (cherryPickResult.getStatus() != CherryPickResult.CherryPickStatus.OK) {
+         throw new IllegalStateException("Cherry pick failed: " + cherryPickResult.getStatus());
+      }
    }
 
    public void resetHard() throws Exception {
@@ -211,7 +212,15 @@ public class JGitRepository implements GitRepository {
          }
       }
 
-      git.push().setRemote(remote).setRefSpecs(new RefSpec(name)).setCredentialsProvider(credentialsProvider).call();
+      Iterable<PushResult> pushResults = git.push().setRemote(remote).setRefSpecs(new RefSpec(name)).setCredentialsProvider(credentialsProvider).call();
+
+      for (PushResult pushResult : pushResults) {
+         for (RemoteRefUpdate remoteRefUpdate : pushResult.getRemoteUpdates()) {
+            if (remoteRefUpdate.getStatus() != RemoteRefUpdate.Status.OK) {
+               throw new IllegalStateException("Update failed: " + remoteRefUpdate.getStatus());
+            }
+         }
+      }
    }
 
    @Override
