@@ -42,7 +42,6 @@ public class CommitTask {
    private CommitTask.State state;
    private Commit.Action action;
    private Map<String, String> args = Collections.emptyMap();
-   private String command;
    private String result;
 
 
@@ -79,15 +78,6 @@ public class CommitTask {
 
    public CommitTask setAction(Commit.Action action) {
       this.action = action;
-      return this;
-   }
-
-   public String getCommand() {
-      return command;
-   }
-
-   public CommitTask setCommand(String command) {
-      this.command = command;
       return this;
    }
 
