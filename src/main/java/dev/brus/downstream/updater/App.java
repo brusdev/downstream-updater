@@ -56,6 +56,7 @@ public class App {
    private final static Pattern revertedCommitPattern = Pattern.compile("This reverts commit ([0-9a-f]{40})");
    private final static Pattern prepareReleaseCommitPattern = Pattern.compile("Prepare release (.*)");
 
+   private static final String USER_OPTION = "user";
    private static final String PROJECT_CONFIG_REPOSITORY_OPTION = "project-config-repository";
    private static final String PROJECT_CONFIG_REPOSITORY_AUTH_STRING_OPTION = "project-config-repository-auth-string";
    private static final String PROJECT_CONFIG_BRANCH_OPTION = "project-config-branch";
@@ -89,9 +90,6 @@ public class App {
    private static final String CHECK_COMMAND_OPTION = "check-command";
    private static final String CHECK_TESTS_COMMAND_OPTION = "check-tests-command";
 
-   private static final String DEFAULT_USER_NAME = "rh-messaging-ci";
-   private static final String DEFAULT_USER_EMAIL = "messaging-infra@redhat.com";
-
 
    public static void main(String[] args) throws Exception {
       // Initialize target directory
@@ -104,6 +102,7 @@ public class App {
 
       // Parse arguments
       CommandLineParser parser = new CommandLineParser();
+      parser.addOption(null, USER_OPTION, true, true, false, "the user, i.e. dbruscin");
       parser.addOption(null, PROJECT_CONFIG_REPOSITORY_OPTION, true, true, false, "the project config repository, i.e. https://gitlab.cee.redhat.com/amq/project-configs.git");
       parser.addOption(null, PROJECT_CONFIG_REPOSITORY_AUTH_STRING_OPTION, true, true, false, "the auth string to access project config repository");
       parser.addOption(null, PROJECT_CONFIG_BRANCH_OPTION, true, true, false, "the project config branch, i.e. main");
@@ -149,6 +148,32 @@ public class App {
          throw new RuntimeException("Error on parsing arguments", e);
       }
 
+      // Initialize gson
+      Gson gson = new GsonBuilder().setPrettyPrinting().create();
+
+
+      // Load users
+      User[] usersArray;
+      File usersFile = new File(targetDir, "users.json");
+      if (usersFile.exists()) {
+         usersArray = gson.fromJson(FileUtils.readFileToString(usersFile, Charset.defaultCharset()), User[].class);
+      } else {
+         usersArray = new User[0];
+      }
+
+      // Initialize UserResolver
+      UserResolver userResolver = new UserResolver(usersArray);
+
+      // Initialize user
+      String username = line.getOptionValue(USER_OPTION);
+      User user = userResolver.getUserFromUsername(username);
+      if (user == null) {
+         throw new IllegalArgumentException("User not found: " + username);
+      } else {
+         logger.debug("User found:");
+         logger.debug(gson.toJson(user));
+      }
+
       String projectConfigRepository = line.getOptionValue(PROJECT_CONFIG_REPOSITORY_OPTION);
       String projectConfigRepositoryAuthString = line.getOptionValue(PROJECT_CONFIG_REPOSITORY_AUTH_STRING_OPTION);
       String projectConfigBranch = line.getOptionValue(PROJECT_CONFIG_BRANCH_OPTION);
@@ -157,8 +182,8 @@ public class App {
 
       ProjectConfig projectConfig = new ProjectConfig(projectConfigRepository,
          projectConfigRepositoryAuthString, projectConfigBranch, projectConfigPath, targetDir);
-      projectConfig.setRepositoryUserName(DEFAULT_USER_NAME);
-      projectConfig.setRepositoryUserEmail(DEFAULT_USER_EMAIL);
+      projectConfig.setRepositoryUserName(user.getName());
+      projectConfig.setRepositoryUserEmail(user.getEmailAddresses()[0]);
       projectConfig.load();
 
       Project project = projectConfig.getProject();
@@ -213,10 +238,14 @@ public class App {
 
       String checkTestsCommand = line.getOptionValue(CHECK_TESTS_COMMAND_OPTION, project.getCheckTestCommand());
 
+      // Set assignee as default user
+      userResolver.setDefaultUser(userResolver.getUserFromUsername(assignee));
+
+
       // Initialize git
       GitRepository gitRepository = new JGitRepository();
-      gitRepository.setUserName(DEFAULT_USER_NAME);
-      gitRepository.setUserEmail(DEFAULT_USER_EMAIL);
+      gitRepository.setUserName(user.getName());
+      gitRepository.setUserEmail(user.getEmailAddresses()[0]);
       gitRepository.getRemoteAuthStrings().put("origin", downstreamRepositoryAuthString);
       gitRepository.getRemoteAuthStrings().put("upstream", upstreamRepositoryAuthString);
       String downstreamRepositoryBaseName = FilenameUtils.getBaseName(downstreamRepository);
@@ -244,25 +273,7 @@ public class App {
       gitRepository.checkout(downstreamBranch);
 
 
-      // Initialize gson
-      Gson gson = new GsonBuilder().setPrettyPrinting().create();
-
-
-      //Load users
-      User[] usersArray;
-      File usersFile = new File(targetDir, "users.json");
-      if (usersFile.exists()) {
-         usersArray = gson.fromJson(FileUtils.readFileToString(usersFile, Charset.defaultCharset()), User[].class);
-      } else {
-         usersArray = new User[0];
-      }
-
-      //Initialize UserResolver
-      UserResolver userResolver = new UserResolver(usersArray);
-      userResolver.setDefaultUser(userResolver.getUserFromUsername(assignee));
-
-
-      //Initialize IssueManagerFactory
+      // Initialize IssueManagerFactory
       IssueManagerFactory issueManagerFactory = new IssueManagerFactory();
 
 

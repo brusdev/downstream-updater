@@ -18,10 +18,20 @@
 package dev.brus.downstream.updater.user;
 
 public class User {
+   private String name;
    private String username;
    private String upstreamUsername;
    private String downstreamUsername;
    private String[] emailAddresses;
+
+   public String getName() {
+      return name;
+   }
+
+   public User setName(String name) {
+      this.name = name;
+      return this;
+   }
 
    public String getUsername() {
       return username;
