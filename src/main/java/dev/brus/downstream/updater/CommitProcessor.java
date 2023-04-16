@@ -443,7 +443,7 @@ public class CommitProcessor {
                   if (processDownstreamIssues(commit, release, candidate, selectedDownstreamIssues, confirmedTasks)) {
                      commit.setState(Commit.State.DONE);
                   } else {
-                     commit.setState(Commit.State.INCOMPLETE).setReason("DOWNSTREAM_ISSUES_NOT_UPDATED");
+                     commit.setState(Commit.State.PARTIAL).setReason("DOWNSTREAM_ISSUES_NOT_UPDATED");
                   }
                } else {
                   if (requireReleaseIssues && !isAnyPreviousDownstreamIssueDone(candidateReleaseVersion, allDownstreamIssues)) {
@@ -454,7 +454,7 @@ public class CommitProcessor {
                      if (cloneDownstreamIssues(commit, release, selectedDownstreamIssues, confirmedTasks)) {
                         commit.setState(Commit.State.DONE);
                      } else {
-                        commit.setState(Commit.State.INCOMPLETE).setReason("NO_DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE");
+                        commit.setState(Commit.State.PARTIAL).setReason("NO_DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE");
                      }
                   }
                }
@@ -477,7 +477,7 @@ public class CommitProcessor {
                   if (processDownstreamIssues(commit, release, candidate, selectedDownstreamIssues, confirmedTasks)) {
                      commit.setState(Commit.State.DONE);
                   } else {
-                     commit.setState(Commit.State.INCOMPLETE).setReason("DOWNSTREAM_ISSUES_NOT_UPDATED");
+                     commit.setState(Commit.State.PARTIAL).setReason("DOWNSTREAM_ISSUES_NOT_UPDATED");
                   }
                } else {
                   commit.setState(Commit.State.TODO).setReason("DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE_SUFFICIENT");

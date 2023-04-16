@@ -365,7 +365,7 @@ public class CommitProcessorTest {
       Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
 
       Commit incompleteCommit = commitProcessor.process(upstreamCommit);
-      Assert.assertEquals(Commit.State.INCOMPLETE, incompleteCommit.getState());
+      Assert.assertEquals(Commit.State.PARTIAL, incompleteCommit.getState());
 
       downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
 
@@ -530,7 +530,7 @@ public class CommitProcessorTest {
          if (upstreamCommit.getShortMessage().startsWith(NO_ISSUE_KEY)) {
             Assert.assertEquals(Commit.State.DONE, commit.getState());
          } else {
-            Assert.assertEquals(Commit.State.INCOMPLETE, commit.getState());
+            Assert.assertEquals(Commit.State.PARTIAL, commit.getState());
          }
 
          File commitDir = new File(commitProcessor.getCommitsDir(), upstreamCommit.getName());

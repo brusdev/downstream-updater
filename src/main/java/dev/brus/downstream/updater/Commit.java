@@ -46,7 +46,7 @@ public class Commit {
        * The upstream commit is cherry-picked and the downstream issues are not updated (labels),
        * update the downstream issues to go ahead
        */
-      INCOMPLETE,
+      PARTIAL,
 
       /**
        * The upstream commit is cherry-picked and downstream issues are updated, nothing else to do
