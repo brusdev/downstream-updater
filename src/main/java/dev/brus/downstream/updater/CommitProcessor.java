@@ -841,7 +841,7 @@ public class CommitProcessor {
          String issueKey = commitTask.getArgs().get("issueKey");
 
          if (!projectConfig.getProject().getStream(projectStreamName).getExcludedUpstreamIssues().contains(issueKey)) {
-            projectConfig.addExcludedUpstreamIssue(issueKey, projectStreamName, 3);
+            projectConfig.addExcludedUpstreamIssue(issueKey, projectStreamName, 10);
          } else {
             logger.info("Upstream issue " + issueKey + " already excluded from " +
                projectConfig.getProject().getName() + "/" + projectStreamName);
