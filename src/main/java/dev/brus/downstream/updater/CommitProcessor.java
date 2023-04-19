@@ -451,7 +451,7 @@ public class CommitProcessor {
                      // a downstream release issue if they are cherry-picked to a branch after the first release
                      logger.warn("INCOMPLETE because no downstream issues with the required target release");
 
-                     if (cloneDownstreamIssues(commit, release, selectedDownstreamIssues, confirmedTasks)) {
+                     if (cloneDownstreamIssues(commit, Commit.Action.STEP, release, selectedDownstreamIssues, confirmedTasks)) {
                         commit.setState(Commit.State.DONE);
                      } else {
                         commit.setState(Commit.State.PARTIAL).setReason("NO_DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE");
@@ -491,7 +491,7 @@ public class CommitProcessor {
                   if (requireReleaseIssues) {
                      // The commits related to downstream issues fixed in another release requires
                      // a downstream release issue if they are cherry-picked to a branch after the first release
-                     if (cloneDownstreamIssues(commit, release, selectedDownstreamIssues, confirmedTasks)) {
+                     if (cloneDownstreamIssues(commit, Commit.Action.STEP, release, selectedDownstreamIssues, confirmedTasks)) {
                         commit.setState(Commit.State.TODO);
                      } else {
                         for (Issue upstreamIssue : upstreamIssues) {
@@ -518,7 +518,28 @@ public class CommitProcessor {
                      }
                   }
                } else {
-                  commit.setState(Commit.State.SKIPPED).setReason("DOWNSTREAM_ISSUE_NOT_SUFFICIENT");
+                  if (requireReleaseIssues) {
+                     // The commits related to downstream issues fixed in another release requires
+                     // a downstream release issue if they are cherry-picked to a branch after the first release
+                     if (cloneDownstreamIssues(commit, Commit.Action.FORCE, release, selectedDownstreamIssues, confirmedTasks)) {
+                        commit.setState(Commit.State.TODO);
+                     } else {
+                        commit.setState(Commit.State.SKIPPED).setReason("DOWNSTREAM_ISSUE_NOT_SUFFICIENT");
+                     }
+                  } else {
+                     // The commits related to a downstream issue fixed in another release don't require
+                     // a downstream release issue if they are cherry-picked to a branch before the first release
+                     String downstreamIssues = selectedDownstreamIssues.stream()
+                        .map(Issue::getKey).collect(Collectors.joining(","));
+                     if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
+                        Commit.Action.FORCE, Map.of("upstreamCommit", commit.getUpstreamCommit(),
+                           "downstreamIssues", downstreamIssues), confirmedTasks)) {
+
+                        commit.setState(Commit.State.DONE);
+                     } else {
+                        commit.setState(Commit.State.SKIPPED).setReason("DOWNSTREAM_ISSUE_NOT_SUFFICIENT");
+                     }
+                  }
                }
             }
          }
@@ -637,12 +658,12 @@ public class CommitProcessor {
       return false;
    }
 
-   private boolean cloneDownstreamIssues(Commit commit, String release, List<Issue> downstreamIssues, List<CommitTask> confirmedTasks) throws Exception {
+   private boolean cloneDownstreamIssues(Commit commit, Commit.Action action, String release, List<Issue> downstreamIssues, List<CommitTask> confirmedTasks) throws Exception {
       boolean executed = true;
 
       for (Issue downstreamIssue : downstreamIssues) {
          executed &= processCommitTask(commit, release, CommitTask.Type.CLONE_DOWNSTREAM_ISSUE,
-            Commit.Action.STEP, Map.of("issueKey", downstreamIssue.getKey()), confirmedTasks);
+            action, Map.of("issueKey", downstreamIssue.getKey()), confirmedTasks);
       }
 
       return executed;

@@ -140,6 +140,48 @@ public class CommitProcessorTest {
    }
 
    @Test
+   public void testCommitWithNotSufficientDownstreamIssue() throws Exception {
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName(COMMIT_NAME_0)
+         .setShortMessage(commitShortMessage)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0);
+      upstreamIssue.getIssues().add(DOWNSTREAM_ISSUE_KEY_0);
+
+      Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
+         .setType(ISSUE_TYPE_BUG)
+         .setTargetRelease("1.0.0.GA")
+         .setCustomerPriority(IssueCustomerPriority.HIGH)
+         .setResolution(ISSUE_RESOLUTION_DONE);
+      downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+
+      Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
+      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
+      Assert.assertEquals(1, commit.getTasks().size());
+      Assert.assertEquals(Commit.Action.FORCE, commit.getTasks().get(0).getAction());
+   }
+
+   @Test
    public void testCommitWithBlockedUpstreamIssue() throws Exception {
       String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
       MockGitCommit upstreamCommit = new MockGitCommit()
