@@ -976,14 +976,23 @@ public class CommitProcessor {
    public User getAssignee(GitCommit upstreamCommit, List<Issue> upstreamIssues, List<Issue> downstreamIssues) {
       User user;
 
-      user = userResolver.getUserFromEmailAddress(upstreamCommit.getAuthorEmail());
-      if (user != null) {
-         return user;
-      }
+      if (downstreamIssues != null) {
+         for (Issue downstreamIssue : downstreamIssues) {
+            user = userResolver.getUserFromDownstreamUsername(downstreamIssue.getAssignee());
+            if (user != null) {
+               return user;
+            }
 
-      user = userResolver.getUserFromEmailAddress(upstreamCommit.getCommitterEmail());
-      if (user != null) {
-         return user;
+            user = userResolver.getUserFromDownstreamUsername(downstreamIssue.getReporter());
+            if (user != null) {
+               return user;
+            }
+
+            user = userResolver.getUserFromDownstreamUsername(downstreamIssue.getCreator());
+            if (user != null) {
+               return user;
+            }
+         }
       }
 
       if (upstreamIssues != null) {
@@ -1005,23 +1014,14 @@ public class CommitProcessor {
          }
       }
 
-      if (downstreamIssues != null) {
-         for (Issue downstreamIssue : downstreamIssues) {
-            user = userResolver.getUserFromDownstreamUsername(downstreamIssue.getAssignee());
-            if (user != null) {
-               return user;
-            }
+      user = userResolver.getUserFromEmailAddress(upstreamCommit.getAuthorEmail());
+      if (user != null) {
+         return user;
+      }
 
-            user = userResolver.getUserFromDownstreamUsername(downstreamIssue.getReporter());
-            if (user != null) {
-               return user;
-            }
-
-            user = userResolver.getUserFromDownstreamUsername(downstreamIssue.getCreator());
-            if (user != null) {
-               return user;
-            }
-         }
+      user = userResolver.getUserFromEmailAddress(upstreamCommit.getCommitterEmail());
+      if (user != null) {
+         return user;
       }
 
       return userResolver.getDefaultUser();

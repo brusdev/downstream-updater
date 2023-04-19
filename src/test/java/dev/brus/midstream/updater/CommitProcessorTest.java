@@ -78,7 +78,11 @@ public class CommitProcessorTest {
       releaseVersion = ReleaseVersion.fromString("1.1.0.CR1");
       projectStream = "1.1";
 
-      testUser = new User().setUsername(TEST_USER_NAME)
+      testUser = new User()
+         .setName(TEST_USER_NAME)
+         .setUsername(TEST_USER_NAME)
+         .setUpstreamUsername(TEST_USER_NAME)
+         .setDownstreamUsername(TEST_USER_NAME)
          .setEmailAddresses(new String[] {TEST_USER_EMAIL});
 
       projectConfig = Mockito.mock(ProjectConfig.class);
