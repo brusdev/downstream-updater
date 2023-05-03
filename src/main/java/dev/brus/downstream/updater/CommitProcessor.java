@@ -789,7 +789,7 @@ public class CommitProcessor {
       GitCommit upstreamCommit = gitRepository.resolveCommit(commit.getUpstreamCommit());
 
       try {
-         logger.info("Cherry-picking " + commit.getUpstreamCommit() + "for downstream: " + downstreamIssues);
+         logger.info("Cherry-picking " + commit.getUpstreamCommit() + " for downstream: " + downstreamIssues);
          gitRepository.cherryPick(upstreamCommit);
 
          if (!checkCommit(commit)) {
