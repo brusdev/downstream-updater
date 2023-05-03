@@ -23,6 +23,8 @@ public interface DownstreamIssueManager extends IssueManager {
 
    IssueStateMachine getIssueStateMachine();
 
+   String getIssueStateToDo();
+
    String getIssueStateDevComplete();
 
    String getIssueLabelNoBackportNeeded();

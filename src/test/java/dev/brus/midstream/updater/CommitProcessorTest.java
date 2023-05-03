@@ -35,6 +35,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 public class CommitProcessorTest {
 
@@ -55,6 +57,7 @@ public class CommitProcessorTest {
    private final static String ISSUE_TYPE_BUG = "Bug";
    private static final String ISSUE_RESOLUTION_DONE = "Done";
    private static final String ISSUE_LABEL_NO_BACKPORT_NEEDED = "NO-BACKPORT-NEEDED";
+   private static final String ISSUE_STATE_TODO = "To Do";
    private static final String ISSUE_STATE_DEV_COMPLETE = "Dev Complete";
 
    @Rule
@@ -583,5 +586,55 @@ public class CommitProcessorTest {
          File checkLogFile = new File(commitDir, "check.log");
          Assert.assertTrue(checkLogFile.exists());
       }
+   }
+
+   @Test
+   public void testCloneUpstreamIssue() throws Exception {
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName(COMMIT_NAME_0)
+         .setShortMessage(commitShortMessage)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Map<String, Commit> confirmedCommits = new HashMap<>();
+      Commit confirmedCommit = new Commit().
+         setUpstreamCommit(upstreamCommit.getName()).
+         setTasks(Collections.singletonList(
+         new CommitTask().
+            setAction(Commit.Action.STEP).
+            setType(CommitTask.Type.CLONE_UPSTREAM_ISSUE).
+            setArgs(Map.of("issueKey", UPSTREAM_ISSUE_KEY_0))));
+      confirmedCommits.put(upstreamCommit.getName(), confirmedCommit);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0).setType(ISSUE_TYPE_BUG).setSummary(TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+
+      Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0);
+
+      Mockito.when(downstreamIssueManager.createIssue(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(downstreamIssue);
+      Mockito.when(downstreamIssueManager.getIssueStateToDo()).thenReturn(ISSUE_STATE_TODO);
+
+      Mockito.doAnswer(invocationContext -> downstreamIssue.setState(invocationContext.getArgument(1))).
+         when(downstreamIssueManager).transitionIssue(Mockito.any(), Mockito.any());
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      commitProcessor.setConfirmedCommits(confirmedCommits);
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.TODO, commit.getState());
+      Assert.assertEquals(ISSUE_STATE_TODO, downstreamIssue.getState());
    }
 }

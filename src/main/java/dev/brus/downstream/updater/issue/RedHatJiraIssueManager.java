@@ -50,6 +50,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
 
    private static final String ISSUE_RESOLUTION_DONE = "Done";
    private static final String ISSUE_RESOLUTION_DUPLICATE = "Duplicate";
+   private static final String ISSUE_STATE_TODO = "To Do";
    private static final String ISSUE_STATE_DEV_COMPLETE = "Dev Complete";
 
    private static final String ISSUE_LABEL_NO_BACKPORT_NEEDED = "NO-BACKPORT-NEEDED";
@@ -85,6 +86,11 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    @Override
    public String getIssueResolutionDone() {
       return ISSUE_RESOLUTION_DONE;
+   }
+
+   @Override
+   public String getIssueStateToDo() {
+      return ISSUE_STATE_TODO;
    }
 
    @Override

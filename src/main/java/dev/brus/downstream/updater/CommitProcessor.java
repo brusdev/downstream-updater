@@ -558,7 +558,7 @@ public class CommitProcessor {
             if (sufficientUpstreamIssue != null) {
                if (processCommitTask(commit, release, CommitTask.Type.CLONE_UPSTREAM_ISSUE,
                   Commit.Action.STEP, Map.of("issueKey", sufficientUpstreamIssue.getKey()), confirmedTasks)) {
-                  commit.setState(Commit.State.DONE);
+                  commit.setState(Commit.State.TODO);
                } else {
                   if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
                      Commit.Action.FORCE, Map.of("upstreamCommit", commit.getUpstreamCommit()), confirmedTasks)) {
@@ -897,6 +897,8 @@ public class CommitProcessor {
 
       downstreamIssueManager.linkIssue(clonedIssue.getKey(), issueKey, "Cloners");
 
+      downstreamIssueManager.transitionIssue(clonedIssue.getKey(), downstreamIssueManager.getIssueStateToDo());
+
       for (String upstreamIssueKey : clonedIssue.getIssues()) {
          Issue upstreamIssue = upstreamIssueManager.getIssue(upstreamIssueKey);
          upstreamIssue.getIssues().add(clonedIssue.getKey());
@@ -915,6 +917,8 @@ public class CommitProcessor {
          assignee.getDownstreamUsername(), release, Collections.emptyList());
 
       downstreamIssueManager.addIssueUpstreamIssues(downstreamIssue.getKey(), upstreamIssue.getKey());
+
+      downstreamIssueManager.transitionIssue(downstreamIssue.getKey(), downstreamIssueManager.getIssueStateToDo());
 
       upstreamIssue.getIssues().add(downstreamIssue.getKey());
 
