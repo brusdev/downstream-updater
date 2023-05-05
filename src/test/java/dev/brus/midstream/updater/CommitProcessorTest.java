@@ -56,6 +56,7 @@ public class CommitProcessorTest {
 
    private final static String ISSUE_TYPE_BUG = "Bug";
    private static final String ISSUE_RESOLUTION_DONE = "Done";
+   private static final String ISSUE_RESOLUTION_WONT_DO = "Won't Do";
    private static final String ISSUE_LABEL_NO_BACKPORT_NEEDED = "NO-BACKPORT-NEEDED";
    private static final String ISSUE_STATE_TODO = "To Do";
    private static final String ISSUE_STATE_DEV_COMPLETE = "Dev Complete";
@@ -636,5 +637,49 @@ public class CommitProcessorTest {
 
       Assert.assertEquals(Commit.State.TODO, commit.getState());
       Assert.assertEquals(ISSUE_STATE_TODO, downstreamIssue.getState());
+   }
+
+   @Test
+   public void testCommitWithDownstreamIssueNotDone() throws Exception {
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName(COMMIT_NAME_0)
+         .setShortMessage(commitShortMessage)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0)
+         .setType(ISSUE_TYPE_BUG);
+      upstreamIssue.getIssues().add(DOWNSTREAM_ISSUE_KEY_0);
+
+      Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
+         .setType(ISSUE_TYPE_BUG)
+         .setCustomer(true)
+         .setCustomerPriority(IssueCustomerPriority.HIGH)
+         .setResolution(ISSUE_RESOLUTION_WONT_DO);
+      downstreamIssue.getLabels().add(ISSUE_LABEL_NO_BACKPORT_NEEDED);
+      downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+
+      Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
+      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig,
+         projectStream,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.NEW, commit.getState());
+      Assert.assertEquals("UPSTREAM_ISSUE_SUFFICIENT_BUT_NO_DOWNSTREAM_ISSUES", commit.getReason());
    }
 }

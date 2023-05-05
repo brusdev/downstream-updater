@@ -410,12 +410,22 @@ public class CommitProcessor {
 
       // Select downstream issues
       String selectedTargetRelease = null;
-      List<Issue> selectedDownstreamIssues = null;
       List<Issue> allDownstreamIssues = new ArrayList<>();
+      List<Issue> selectedDownstreamIssues = new ArrayList<>();
       Map<String, List<Issue>> downstreamIssuesGroups = groupDownstreamIssuesByTargetRelease(downstreamIssueKeys);
       if (downstreamIssuesGroups != null && downstreamIssuesGroups.size() > 0) {
          selectedTargetRelease = selectRelease(downstreamIssuesGroups.keySet(), release);
-         selectedDownstreamIssues = downstreamIssuesGroups.get(selectedTargetRelease);
+
+         // Skip downstream issues with a resolution different from done.
+         for (Issue downstreamIssue : downstreamIssuesGroups.get(selectedTargetRelease)) {
+            if (downstreamIssue.getResolution() == null || downstreamIssueManager.
+               getIssueResolutionDone().equals(downstreamIssue.getResolution())) {
+               selectedDownstreamIssues.add(downstreamIssue);
+            } else {
+               logger.info("Downstream issue skipped because of the resolution " +
+                  downstreamIssue.getKey() + "/" + downstreamIssue.getResolution());
+            }
+         }
 
          for (List<Issue> downstreamIssuesGroup : downstreamIssuesGroups.values()) {
             for (Issue downstreamIssue : downstreamIssuesGroup) {
@@ -432,7 +442,7 @@ public class CommitProcessor {
       boolean requireReleaseIssues =  candidateReleaseVersion.getPatch() > 0 ||
          !isAnyPreviousDownstreamIssueDone(candidateReleaseVersion, allDownstreamIssues);
 
-      if (selectedDownstreamIssues != null && selectedDownstreamIssues.size() > 0) {
+      if (!selectedDownstreamIssues.isEmpty()) {
          // Commit related to downstream issues
 
          if (cherryPickedCommit != null) {
