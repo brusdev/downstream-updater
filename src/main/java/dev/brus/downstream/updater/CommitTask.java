@@ -42,6 +42,7 @@ public class CommitTask {
    private CommitTask.State state;
    private Commit.Action action;
    private Map<String, String> args = Collections.emptyMap();
+   private Map<String, String> userArgs = Collections.emptyMap();
    private String result;
 
 
@@ -60,6 +61,15 @@ public class CommitTask {
 
    public CommitTask setArgs(Map<String, String> args) {
       this.args = args;
+      return this;
+   }
+
+   public Map<String, String> getUserArgs() {
+      return userArgs;
+   }
+
+   public CommitTask setUserArgs(Map<String, String> userArgs) {
+      this.userArgs = userArgs;
       return this;
    }
 
