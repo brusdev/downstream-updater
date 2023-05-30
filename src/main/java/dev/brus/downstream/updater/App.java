@@ -374,7 +374,13 @@ public class App {
             Matcher prepareReleaseCommitMatcher = prepareReleaseCommitPattern.matcher(commit.getShortMessage());
             if (prepareReleaseCommitMatcher.find()) {
                logger.info("prepare release commit found: " + commit.getName() + " - " + commit.getShortMessage());
-               cherryPickedReleaseVersion = ReleaseVersion.fromString(prepareReleaseCommitMatcher.group(1));
+               ReleaseVersion prepareReleaseVersion = ReleaseVersion.fromString(prepareReleaseCommitMatcher.group(1));
+
+               if (prepareReleaseVersion.getCandidate().startsWith("CR")) {
+                  cherryPickedReleaseVersion = prepareReleaseVersion;
+               } else {
+                  logger.info("Prepare release version skipped: " + prepareReleaseVersion);
+               }
             } else {
                downstreamCommits.push(new AbstractMap.SimpleEntry<>(commit, cherryPickedReleaseVersion));
 
