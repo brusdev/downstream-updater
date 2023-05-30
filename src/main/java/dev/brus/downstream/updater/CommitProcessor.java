@@ -770,6 +770,10 @@ public class CommitProcessor {
    }
 
    private String formatCommitCommand(Commit commit, String command) throws Exception {
+      if (command == null) {
+         return null;
+      }
+
       return command.replace("${HOSTNAME}", InetAddress.getLocalHost().getHostName())
          .replace("${HOSTIP}", InetAddress.getLocalHost().getHostAddress())
          .replace("${TEST}", String.join(",", commit.getTests()));
