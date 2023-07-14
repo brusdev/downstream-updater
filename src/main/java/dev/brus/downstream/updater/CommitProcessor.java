@@ -571,6 +571,10 @@ public class CommitProcessor {
             if (sufficientUpstreamIssue != null) {
                if (processCommitTask(commit, release, CommitTask.Type.CLONE_UPSTREAM_ISSUE,
                   Commit.Action.STEP, Map.of("issueKey", sufficientUpstreamIssue.getKey()), Collections.emptyMap(), confirmedTasks)) {
+                  String downstreamIssues = commit.getTasks().get(commit.getTasks().size() - 1).getResult();
+                  processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
+                     Commit.Action.STEP, Map.of("upstreamCommit", commit.getUpstreamCommit(),
+                        "downstreamIssues", downstreamIssues), Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks);
                   commit.setState(Commit.State.TODO);
                } else {
                   if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
