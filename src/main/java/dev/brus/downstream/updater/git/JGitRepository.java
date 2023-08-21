@@ -106,9 +106,7 @@ public class JGitRepository implements GitRepository {
          resetHard();
 
          CommandExecutor.execute("git cherry-pick --no-commit " + commit.getName(), getDirectory(), null);
-      }
-
-      if (cherryPickResult.getStatus() != CherryPickResult.CherryPickStatus.OK) {
+      } else if (cherryPickResult.getStatus() != CherryPickResult.CherryPickStatus.OK) {
          throw new IllegalStateException("Cherry pick failed: " + cherryPickResult.getStatus());
       }
    }
