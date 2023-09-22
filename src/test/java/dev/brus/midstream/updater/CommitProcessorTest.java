@@ -236,7 +236,8 @@ public class CommitProcessorTest {
          .setShortMessage(commitShortMessage)
          .setAuthorEmail(TEST_USER_EMAIL);
 
-      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0);
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0)
+         .setType(ISSUE_TYPE_BUG);
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
       Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
@@ -256,7 +257,7 @@ public class CommitProcessorTest {
       Commit commit = commitProcessor.process(upstreamCommit);
 
       Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
-      Assert.assertEquals("NO_VALID_UPSTREAM_ISSUES", commit.getReason());
+      Assert.assertEquals("UPSTREAM_ISSUE_EXCLUDED", commit.getReason());
    }
 
    @Test

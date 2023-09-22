@@ -333,12 +333,8 @@ public class CommitProcessor {
          Issue upstreamIssue = upstreamIssueManager.getIssue(upstreamIssueKey);
 
          if (upstreamIssue != null) {
-            if (!isUpstreamIssueExcluded(upstreamIssue)) {
-               upstreamIssues.add(upstreamIssue);
-               commit.getUpstreamIssues().add(new IssueReference(upstreamIssue));
-            } else {
-               logger.info("Upstream issue excluded: " + upstreamIssueKey);
-            }
+            upstreamIssues.add(upstreamIssue);
+            commit.getUpstreamIssues().add(new IssueReference(upstreamIssue));
          } else {
             logger.warn("Upstream issue not found: " + upstreamIssueKey);
          }
@@ -566,7 +562,8 @@ public class CommitProcessor {
             // Commit not cherry-picked and no downstream issues
             Issue sufficientUpstreamIssue = upstreamIssues.stream().filter(issue ->
                confirmedUpstreamIssues != null && confirmedUpstreamIssues.containsKey(issue.getKey()) ||
-                  issue.getType().equals(upstreamIssueManager.getIssueTypeBug())).findFirst().orElse(null);
+                  issue.getType().equals(upstreamIssueManager.getIssueTypeBug()) &&
+                     !isUpstreamIssueExcluded(issue)).findFirst().orElse(null);
 
             if (sufficientUpstreamIssue != null) {
                if (processCommitTask(commit, release, CommitTask.Type.CLONE_UPSTREAM_ISSUE,
@@ -597,8 +594,13 @@ public class CommitProcessor {
                   Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks)) {
                   commit.setState(Commit.State.DONE);
                } else {
-                  logger.info("SKIPPED because the the upstream issue is not sufficient");
-                  commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_NOT_SUFFICIENT");
+                  if (upstreamIssues.stream().allMatch(issue -> isUpstreamIssueExcluded(issue))) {
+                     logger.info("SKIPPED because the the upstream issue is not sufficient");
+                     commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
+                  } else {
+                     logger.info("SKIPPED because the the upstream issue is not sufficient");
+                     commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_NOT_SUFFICIENT");
+                  }
                }
             }
          }
