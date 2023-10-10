@@ -513,12 +513,18 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       //"id":"customfield_12312340","name":"GSS Priority"
       //"id":"customfield_12310120","name":"Help Desk Ticket Reference"
       //"id":"customfield_12310021","name":"Support Case Reference"
+      //"id":"customfield_12313441","name":"SFDC Cases Links"
+      //"id":"customfield_12313440","name":"SFDC Cases Counter"
       JsonElement gssPriorityElement = issueFields.get("customfield_12312340");
       JsonElement helpDeskTicketReferenceElement = issueFields.get("customfield_12310120");
       JsonElement supportCaseReferenceElement = issueFields.get("customfield_12310021");
+      JsonElement sfdcCasesLinksElement = issueFields.get("customfield_12313441");
+      JsonElement sfdcCasesCounterElement = issueFields.get("customfield_12313440");
       issue.setCustomer(issue.isPatch() || (gssPriorityElement != null && !gssPriorityElement.isJsonNull()) ||
          (helpDeskTicketReferenceElement != null && !helpDeskTicketReferenceElement.isJsonNull()) ||
-         (supportCaseReferenceElement != null && !supportCaseReferenceElement.isJsonNull()));
+         (supportCaseReferenceElement != null && !supportCaseReferenceElement.isJsonNull()) ||
+         (sfdcCasesLinksElement != null && !sfdcCasesLinksElement.isJsonNull()) ||
+         (sfdcCasesCounterElement != null && !sfdcCasesCounterElement.isJsonNull()));
       issue.setCustomerPriority(gssPriorityElement != null && !gssPriorityElement.isJsonNull() ? IssueCustomerPriority.fromName(
          gssPriorityElement.getAsJsonObject().get("value").getAsString()) : IssueCustomerPriority.NONE);
 
