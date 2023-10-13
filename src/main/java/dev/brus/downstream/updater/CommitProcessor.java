@@ -436,6 +436,12 @@ public class CommitProcessor {
 
       commit.setAssignee(getAssignee(upstreamCommit, upstreamIssues, selectedDownstreamIssues).getUsername());
 
+      if (upstreamIssues.stream().allMatch(issue -> isUpstreamIssueExcluded(issue))) {
+         logger.info("SKIPPED because the the upstream issue is not sufficient");
+         commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
+         return commit;
+      }
+
       // The commits related to downstream issues fixed in another release requires
       // a downstream release issue if they are cherry-picked to a branch after the first release
       boolean requireReleaseIssues =  candidateReleaseVersion.getPatch() > 0 ||
@@ -594,13 +600,8 @@ public class CommitProcessor {
                   Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks)) {
                   commit.setState(Commit.State.DONE);
                } else {
-                  if (upstreamIssues.stream().allMatch(issue -> isUpstreamIssueExcluded(issue))) {
-                     logger.info("SKIPPED because the the upstream issue is not sufficient");
-                     commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
-                  } else {
-                     logger.info("SKIPPED because the the upstream issue is not sufficient");
-                     commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_NOT_SUFFICIENT");
-                  }
+                  logger.info("SKIPPED because the the upstream issue is not sufficient");
+                  commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_NOT_SUFFICIENT");
                }
             }
          }
