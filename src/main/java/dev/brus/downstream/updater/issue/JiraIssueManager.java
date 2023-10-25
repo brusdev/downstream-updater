@@ -158,8 +158,9 @@ public class JiraIssueManager implements IssueManager {
 
       for (int i = 0; i < taskCount; i++) {
          final int start = i * MAX_RESULTS;
+         final int maxResults = i < taskCount - 1 ? MAX_RESULTS : total - start;
 
-         tasks.add(() -> loadIssues(query, start, MAX_RESULTS));
+         tasks.add(() -> loadIssues(query, start, maxResults));
       }
 
       long beginTimestamp = System.nanoTime();
@@ -190,6 +191,10 @@ public class JiraIssueManager implements IssueManager {
             JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
 
             JsonArray issuesArray = jsonObject.getAsJsonArray("issues");
+
+            if (issuesArray.size() != maxResults) {
+               throw new IllegalStateException("Error getting from " + start + " - " + issuesArray.size() + "/" + maxResults + " issues");
+            }
 
             DateFormat dateFormat = new SimpleDateFormat(dateFormatPattern);
             for (JsonElement issueElement : issuesArray) {
