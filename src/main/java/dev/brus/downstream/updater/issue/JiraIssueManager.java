@@ -156,6 +156,8 @@ public class JiraIssueManager implements IssueManager {
       int taskCount = (int)Math.ceil((double)total / (double)MAX_RESULTS);
       List<Callable<Integer>> tasks = new ArrayList<>();
 
+      logger.info("Loading " + total + " issues with " + taskCount + "tasks");
+
       for (int i = 0; i < taskCount; i++) {
          final int start = i * MAX_RESULTS;
          final int maxResults = i < taskCount - 1 ? MAX_RESULTS : total - start;
@@ -176,8 +178,12 @@ public class JiraIssueManager implements IssueManager {
       executorService.shutdown();
       logger.info("Loaded " + count + "/" + total + " issues in " + (endTimestamp - beginTimestamp) / 1000000 + " milliseconds");
 
-      if (count != total) {
+      int diff = total - count;
+
+      if (diff > 3) {
          throw new IllegalStateException("Error loading " + count + "/" + total + " issues");
+      } else if (diff > 0) {
+         logger.warn("Error loading " + count + "/" + total + " issues");
       }
    }
 
@@ -192,8 +198,12 @@ public class JiraIssueManager implements IssueManager {
 
             JsonArray issuesArray = jsonObject.getAsJsonArray("issues");
 
-            if (issuesArray.size() != maxResults) {
+            int diff = maxResults - issuesArray.size();
+
+            if (diff > 3) {
                throw new IllegalStateException("Error getting from " + start + " - " + issuesArray.size() + "/" + maxResults + " issues");
+            } else if (diff > 0) {
+               logger.warn("Error getting from " + start + " - " + issuesArray.size() + "/" + maxResults + " issues");
             }
 
             DateFormat dateFormat = new SimpleDateFormat(dateFormatPattern);
@@ -319,6 +329,7 @@ public class JiraIssueManager implements IssueManager {
 
    protected HttpURLConnection createConnection(String url) throws Exception {
       URL upstreamJIRA = new URL(serverURL + url);
+      logger.info("Connecting to " + upstreamJIRA);
       HttpURLConnection connection = (HttpURLConnection)upstreamJIRA.openConnection();
       connection.setRequestProperty("Content-Type", "application/json");
       connection.setRequestProperty("Accept", "application/json");
