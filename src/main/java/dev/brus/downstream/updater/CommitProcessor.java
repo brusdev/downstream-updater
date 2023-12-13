@@ -26,6 +26,7 @@ import dev.brus.downstream.updater.issue.IssueManager;
 import dev.brus.downstream.updater.issue.IssueReference;
 import dev.brus.downstream.updater.issue.IssueSecurityImpact;
 import dev.brus.downstream.updater.project.ProjectConfig;
+import dev.brus.downstream.updater.project.ProjectStream;
 import dev.brus.downstream.updater.user.User;
 import dev.brus.downstream.updater.user.UserResolver;
 import dev.brus.downstream.updater.util.CommandExecutor;
@@ -64,9 +65,13 @@ public class CommitProcessor {
 
    private static final String TEST_PATH = "src/test/java/";
 
+   private static final String USER_ARG_SKIP_TESTS = "skipTests";
+   private static final String USER_ARG_FORCE = "force";
+
 
    private ProjectConfig projectConfig;
    private String projectStreamName;
+   private ProjectStream.Mode projectStreamMode;
    private GitRepository gitRepository;
    private ReleaseVersion candidateReleaseVersion;
    private String targetReleaseFormat;
@@ -242,6 +247,7 @@ public class CommitProcessor {
       this.targetReleaseFormat = targetReleaseFormat;
       this.projectConfig = projectConfig;
       this.projectStreamName = projectStreamName;
+      this.projectStreamMode = projectConfig.getProject().getStream(projectStreamName).getMode();
       this.gitRepository = gitRepository;
       this.upstreamIssueManager = upstreamIssueManager;
       this.downstreamIssueManager = downstreamIssueManager;
@@ -345,7 +351,7 @@ public class CommitProcessor {
       if (upstreamIssues.isEmpty()) {
          if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
             Commit.Action.FORCE, Map.of("upstreamCommit", commit.getUpstreamCommit()),
-            Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks)) {
+            Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks)) {
             commit.setState(Commit.State.DONE);
          } else {
             logger.info("SKIPPED because the commit message has no valid upstream issues");
@@ -361,7 +367,7 @@ public class CommitProcessor {
          if (upstreamRevertingChain.indexOf(upstreamCommit.getName()) == 0) {
             if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
                Commit.Action.FORCE, Map.of("upstreamCommit", commit.getUpstreamCommit()),
-               Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks)) {
+               Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks)) {
                commit.setState(Commit.State.DONE);
             } else {
                commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_REVERTING_COMMIT");
@@ -369,7 +375,7 @@ public class CommitProcessor {
          } else {
             if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
                Commit.Action.FORCE, Map.of("upstreamCommit", commit.getUpstreamCommit()),
-               Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks)) {
+               Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks)) {
                commit.setState(Commit.State.DONE);
             } else {
                commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_REVERTED_COMMIT");
@@ -487,7 +493,7 @@ public class CommitProcessor {
                   .map(Issue::getKey).collect(Collectors.joining(","));
                if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
                   Commit.Action.STEP, Map.of("upstreamCommit", commit.getUpstreamCommit(),
-                     "downstreamIssues", downstreamIssues), Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks)) {
+                     "downstreamIssues", downstreamIssues), Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks)) {
 
                   if (processDownstreamIssues(commit, release, candidate, selectedDownstreamIssues, confirmedTasks)) {
                      commit.setState(Commit.State.DONE);
@@ -507,7 +513,7 @@ public class CommitProcessor {
                      // The commits related to downstream issues fixed in another release requires
                      // a downstream release issue if they are cherry-picked to a branch after the first release
                      if (cloneDownstreamIssues(commit, Commit.Action.STEP, release, selectedDownstreamIssues, confirmedTasks)) {
-                        commit.setState(Commit.State.TODO);
+                        commit.setState(Commit.State.NEW);
                      } else {
                         for (Issue upstreamIssue : upstreamIssues) {
                            if (processCommitTask(commit, release, CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE,
@@ -525,7 +531,7 @@ public class CommitProcessor {
                         .map(Issue::getKey).collect(Collectors.joining(","));
                      if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
                         Commit.Action.STEP, Map.of("upstreamCommit", commit.getUpstreamCommit(),
-                           "downstreamIssues", downstreamIssues), Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks)) {
+                           "downstreamIssues", downstreamIssues), Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks)) {
 
                         commit.setState(Commit.State.DONE);
                      } else {
@@ -537,7 +543,7 @@ public class CommitProcessor {
                      // The commits related to downstream issues fixed in another release requires
                      // a downstream release issue if they are cherry-picked to a branch after the first release
                      if (cloneDownstreamIssues(commit, Commit.Action.FORCE, release, selectedDownstreamIssues, confirmedTasks)) {
-                        commit.setState(Commit.State.TODO);
+                        commit.setState(Commit.State.NEW);
                      } else {
                         commit.setState(Commit.State.SKIPPED).setReason("DOWNSTREAM_ISSUE_NOT_SUFFICIENT");
                      }
@@ -548,7 +554,7 @@ public class CommitProcessor {
                         .map(Issue::getKey).collect(Collectors.joining(","));
                      if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
                         Commit.Action.FORCE, Map.of("upstreamCommit", commit.getUpstreamCommit(),
-                           "downstreamIssues", downstreamIssues), Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks)) {
+                           "downstreamIssues", downstreamIssues), Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks)) {
 
                         commit.setState(Commit.State.DONE);
                      } else {
@@ -577,12 +583,12 @@ public class CommitProcessor {
                   String downstreamIssues = commit.getTasks().get(commit.getTasks().size() - 1).getResult();
                   processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
                      Commit.Action.STEP, Map.of("upstreamCommit", commit.getUpstreamCommit(),
-                        "downstreamIssues", downstreamIssues), Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks);
+                        "downstreamIssues", downstreamIssues), Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks);
                   commit.setState(Commit.State.TODO);
                } else {
                   if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
                      Commit.Action.FORCE, Map.of("upstreamCommit", commit.getUpstreamCommit()),
-                     Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks)) {
+                     Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks)) {
                      commit.setState(Commit.State.DONE);
                   } else {
                      if (processCommitTask(commit, release, CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE,
@@ -597,7 +603,7 @@ public class CommitProcessor {
             } else {
                if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
                   Commit.Action.FORCE, Map.of("upstreamCommit", commit.getUpstreamCommit()),
-                  Map.of("skipTests", Boolean.FALSE.toString()), confirmedTasks)) {
+                  Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks)) {
                   commit.setState(Commit.State.DONE);
                } else {
                   logger.info("SKIPPED because the the upstream issue is not sufficient");
@@ -605,6 +611,12 @@ public class CommitProcessor {
                }
             }
          }
+      }
+
+      if (commit.getTasks().stream().anyMatch(commitTask -> commitTask.getState() == CommitTask.State.BLOCKED) &&
+         commit.getTasks().stream().allMatch(commitTask -> commitTask.getState() == CommitTask.State.BLOCKED ||
+            commitTask.getState() == CommitTask.State.DONE)) {
+         commit.setState(Commit.State.BLOCKED);
       }
 
       return commit;
@@ -847,12 +859,24 @@ public class CommitProcessor {
    }
 
    private boolean processCommitTask(Commit commit, String release, CommitTask.Type type, Commit.Action action, Map<String, String> args, Map<String, String> userArgs, List<CommitTask> confirmedTasks) throws Exception {
-      CommitTask commitTask = new CommitTask().setType(type).setAction(action).setArgs(args).setUserArgs(userArgs).setState(CommitTask.State.NEW);
+      CommitTask commitTask = new CommitTask().setType(type).setAction(action).setArgs(args).setUserArgs(new HashMap<>(userArgs)).setState(CommitTask.State.NEW);
 
       commit.getTasks().add(commitTask);
 
       CommitTask confirmedTask = getCommitTask(type, args, confirmedTasks);
-      if (confirmedTask == null) {
+      boolean force = confirmedTask != null && Boolean.parseBoolean(confirmedTask.
+         getUserArgs().getOrDefault(USER_ARG_FORCE, Boolean.FALSE.toString()));
+
+      if (projectStreamMode == ProjectStream.Mode.VIEWING && !force) {
+         commitTask.getUserArgs().put(USER_ARG_FORCE, Boolean.FALSE.toString());
+         commitTask.setState(CommitTask.State.BLOCKED);
+         return false;
+      } else if (projectStreamMode == ProjectStream.Mode.MANAGING &&
+         commitTask.getType() == CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT && !force) {
+         commitTask.getUserArgs().put(USER_ARG_FORCE, Boolean.FALSE.toString());
+         commitTask.setState(CommitTask.State.BLOCKED);
+         return false;
+      } else if (confirmedTask == null) {
          return false;
       }
 
@@ -874,7 +898,7 @@ public class CommitProcessor {
       if (commitTask.getType() == CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT) {
          GitCommit cherryPickedCommit = cherryPickUpstreamCommit(commit,
             commitTask.getArgs().get("downstreamIssues"),
-            Boolean.parseBoolean(commitTask.getUserArgs().get("skipTests")));
+            Boolean.parseBoolean(commitTask.getUserArgs().get(USER_ARG_SKIP_TESTS)));
          commitTask.setResult(cherryPickedCommit.getName());
       } else if (commitTask.getType() == CommitTask.Type.ADD_LABEL_TO_DOWNSTREAM_ISSUE) {
          downstreamIssueManager.addIssueLabels(commitTask.getArgs().get("issueKey"), commitTask.getArgs().get("label"));

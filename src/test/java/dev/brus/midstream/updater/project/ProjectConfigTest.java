@@ -6,6 +6,7 @@ import java.nio.file.Files;
 
 import dev.brus.downstream.updater.project.Project;
 import dev.brus.downstream.updater.project.ProjectConfig;
+import dev.brus.downstream.updater.project.ProjectStream;
 import dev.brus.downstream.updater.util.CommandExecutor;
 import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
@@ -45,6 +46,8 @@ public class ProjectConfigTest {
 
       Assert.assertNotNull(projectConfig.getProject());
       Assert.assertEquals("AMQ Broker", projectConfig.getProject().getName());
+      Assert.assertEquals(ProjectStream.Mode.VIEWING, projectConfig.getProject().getStream("7.10").getMode());
+      Assert.assertEquals(ProjectStream.Mode.MANAGING, projectConfig.getProject().getStream("7.11").getMode());
 
       projectConfig.addExcludedUpstreamIssue("UP-1234", "7.10");
       CommandExecutor.execute("git reset --hard", repoDir);

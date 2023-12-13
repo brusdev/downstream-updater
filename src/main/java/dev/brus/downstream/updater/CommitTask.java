@@ -35,6 +35,7 @@ public class CommitTask {
    public enum State {
       NEW,
       DONE,
+      BLOCKED,
       FAILED,
    }
 

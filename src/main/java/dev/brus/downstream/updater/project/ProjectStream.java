@@ -4,9 +4,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ProjectStream {
+
+   public enum Mode {
+      VIEWING,
+      MANAGING,
+      UPDATING
+   }
+
    private String name;
    private String assignee;
    private String release;
+   private Mode mode;
    private String upstreamBranch;
    private String downstreamBranch;
    private List<String> excludedDownstreamIssues;
@@ -34,6 +42,14 @@ public class ProjectStream {
 
    public void setRelease(String release) {
       this.release = release;
+   }
+
+   public Mode getMode() {
+      return mode;
+   }
+
+   public void setMode(Mode mode) {
+      this.mode = mode;
    }
 
    public String getUpstreamBranch() {
@@ -69,6 +85,7 @@ public class ProjectStream {
    }
 
    public ProjectStream() {
+      this.mode = Mode.VIEWING;
       this.excludedDownstreamIssues = new ArrayList<>();
       this.excludedUpstreamIssues = new ArrayList<>();
    }

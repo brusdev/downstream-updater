@@ -57,6 +57,11 @@ public class Commit {
        * The upstream commit doesn't match release criteria
        */
       SKIPPED,
+
+      /**
+       * The cherry-pick tasks are blocked when the project stream is not in UPDATING mode.
+       */
+      BLOCKED,
    }
 
    private String assignee;

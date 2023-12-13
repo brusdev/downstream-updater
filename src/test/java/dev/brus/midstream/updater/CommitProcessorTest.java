@@ -16,7 +16,9 @@ import dev.brus.downstream.updater.CommitProcessor;
 import dev.brus.downstream.updater.CommitTask;
 import dev.brus.downstream.updater.git.JGitRepository;
 import dev.brus.downstream.updater.issue.IssueStateMachine;
+import dev.brus.downstream.updater.project.Project;
 import dev.brus.downstream.updater.project.ProjectConfig;
+import dev.brus.downstream.updater.project.ProjectStream;
 import dev.brus.downstream.updater.util.CommandExecutor;
 import dev.brus.downstream.updater.util.ReleaseVersion;
 import dev.brus.downstream.updater.git.GitCommit;
@@ -35,8 +37,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 public class CommitProcessorTest {
 
@@ -60,15 +60,19 @@ public class CommitProcessorTest {
    private static final String ISSUE_LABEL_NO_BACKPORT_NEEDED = "NO-BACKPORT-NEEDED";
    private static final String ISSUE_STATE_TODO = "To Do";
    private static final String ISSUE_STATE_DEV_COMPLETE = "Dev Complete";
+   private static String PREVIOUS_PROJECT_STREAM_NAME = "1.0";
+   private static String CURRENT_PROJECT_STREAM_NAME = "1.1";
 
    @Rule
    public TemporaryFolder testFolder = new TemporaryFolder();
 
    private ReleaseVersion releaseVersion;
-   private String projectStream;
+   private Project project;
+   private ProjectConfig projectConfig;
+   private ProjectStream previousProjectStream;
+   private ProjectStream currentProjectStream;
    private User testUser;
 
-   private ProjectConfig projectConfig;
    private GitRepository gitRepository;
 
    private UserResolver userResolver;
@@ -80,7 +84,6 @@ public class CommitProcessorTest {
    @Before
    public void initMocks() throws Exception {
       releaseVersion = ReleaseVersion.fromString("1.1.0.CR1");
-      projectStream = "1.1";
 
       testUser = new User()
          .setName(TEST_USER_NAME)
@@ -89,7 +92,17 @@ public class CommitProcessorTest {
          .setDownstreamUsername(TEST_USER_NAME)
          .setEmailAddresses(new String[] {TEST_USER_EMAIL});
 
+      project = new Project();
+      previousProjectStream = new ProjectStream();
+      previousProjectStream.setName(PREVIOUS_PROJECT_STREAM_NAME);
+      previousProjectStream.setMode(ProjectStream.Mode.UPDATING);
+      project.getStreams().add(previousProjectStream);
+      currentProjectStream = new ProjectStream();
+      currentProjectStream.setName(CURRENT_PROJECT_STREAM_NAME);
+      currentProjectStream.setMode(ProjectStream.Mode.UPDATING);
+      project.getStreams().add(currentProjectStream);
       projectConfig = Mockito.mock(ProjectConfig.class);
+      Mockito.when(projectConfig.getProject()).thenReturn(project);
 
       gitRepository = Mockito.mock(GitRepository.class);
       Mockito.when(gitRepository.remoteGet("origin")).thenReturn("https://github.com/origin/test.git");
@@ -131,8 +144,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -171,8 +183,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -215,8 +226,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -245,8 +255,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -270,8 +279,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -314,8 +322,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -348,8 +355,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -364,8 +370,86 @@ public class CommitProcessorTest {
    }
 
    @Test
+   public void testCommitBlocked() throws Exception {
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName(UPSTREAM_ISSUE_KEY_0)
+         .setShortMessage(TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0)
+         .setFullMessage(TEST_MESSAGE)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0).setType(ISSUE_TYPE_BUG);
+
+      currentProjectStream.setMode(ProjectStream.Mode.MANAGING);
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      Mockito.when(gitRepository.resolveCommit(upstreamCommit.getName())).thenReturn(upstreamCommit);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(Mockito.anyString())).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+
+      Commit newCommit = commitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.NEW, newCommit.getState());
+      Assert.assertEquals(3, newCommit.getTasks().size());
+
+      Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
+         .setType(ISSUE_TYPE_BUG)
+         .setTargetRelease("1.1.0.GA")
+         .setCustomer(true)
+         .setCustomerPriority(IssueCustomerPriority.HIGH);
+      downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
+      downstreamIssue.getLabels().add(ISSUE_STATE_TODO);
+      downstreamIssue.getLabels().add(releaseVersion.getCandidate());
+      upstreamIssue.getIssues().add(DOWNSTREAM_ISSUE_KEY_0);
+
+      Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
+      Mockito.when(downstreamIssueManager.parseIssueKeys(Mockito.anyString())).thenReturn(Arrays.asList(DOWNSTREAM_ISSUE_KEY_0));
+
+      IssueStateMachine downstreamIssueStateMachine = Mockito.mock(IssueStateMachine.class);
+      Mockito.when(downstreamIssueStateMachine.getStateIndex(Mockito.any())).thenReturn(0);
+      Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
+
+      Commit blockedCommit = commitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.BLOCKED, blockedCommit.getState());
+      Assert.assertEquals(1, blockedCommit.getTasks().size());
+      Assert.assertEquals(CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT, blockedCommit.getTasks().get(0).getType());
+      Assert.assertEquals(CommitTask.State.BLOCKED, blockedCommit.getTasks().get(0).getState());
+
+      Map<String, Commit> confirmedCommits = new HashMap<>();
+      Commit confirmedCommit = new Commit().
+         setUpstreamCommit(upstreamCommit.getName()).
+         setTasks(Collections.singletonList(
+         new CommitTask().
+            setAction(Commit.Action.STEP).
+            setType(CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT).
+            setArgs(Map.of("upstreamCommit", upstreamCommit.getName(), "downstreamIssues", DOWNSTREAM_ISSUE_KEY_0)).
+            setUserArgs(Map.of("force", Boolean.TRUE.toString()))));
+      confirmedCommits.put(upstreamCommit.getName(), confirmedCommit);
+      commitProcessor.setConfirmedCommits(confirmedCommits);
+
+      GitCommit cherryPickedCommit = Mockito.mock(GitCommit.class);
+      Mockito.when(gitRepository.commit(Mockito.anyString(),
+         Mockito.eq(upstreamCommit.getAuthorName()),
+         Mockito.eq(upstreamCommit.getAuthorEmail()),
+         Mockito.eq(upstreamCommit.getAuthorWhen()),
+         Mockito.eq(upstreamCommit.getAuthorTimeZone()))).
+         thenReturn(cherryPickedCommit);
+
+      Commit unblockedCommit = commitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.DONE, unblockedCommit.getState());
+   }
+
+   @Test
    public void testCommitCherryPicked() throws Exception {
-      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
       MockGitCommit upstreamCommit = new MockGitCommit()
          .setName(UPSTREAM_ISSUE_KEY_0)
          .setShortMessage(TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0)
@@ -390,8 +474,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -456,8 +539,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -567,8 +649,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          ReleaseVersion.fromString("1.0.0.CR1"),
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         "1.0",
+         projectConfig, PREVIOUS_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -630,8 +711,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
@@ -686,8 +766,7 @@ public class CommitProcessorTest {
       CommitProcessor commitProcessor = new CommitProcessor(
          releaseVersion,
          TARGET_RELEASE_FORMAT,
-         projectConfig,
-         projectStream,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
          gitRepository,
          upstreamIssueManager,
          downstreamIssueManager,
