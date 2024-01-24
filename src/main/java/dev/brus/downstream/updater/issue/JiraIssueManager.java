@@ -303,6 +303,10 @@ public class JiraIssueManager implements IssueManager {
          .setUrl(issueBaseUrl + "/" + issueKey)
          .setType(issueType);
 
+      for (String component : parseComponents(issueFields.get("components"))) {
+         issue.getComponents().add(component);
+      }
+
       for (String label : parseLabels(issueFields.get("labels"))) {
          issue.getLabels().add(label);
       }
@@ -311,6 +315,20 @@ public class JiraIssueManager implements IssueManager {
       issue.setSecurityImpact(IssueSecurityImpact.NONE);
 
       return issue;
+   }
+
+   protected List<String> parseComponents(JsonElement componentsElement) {
+      List<String> components = new ArrayList<>();
+
+      if (componentsElement != null && !componentsElement.isJsonNull()) {
+         for (JsonElement issueComponentElement : componentsElement.getAsJsonArray()) {
+            if (issueComponentElement != null && !issueComponentElement.isJsonNull()) {
+               components.add(issueComponentElement.getAsJsonObject().get("name").getAsString());
+            }
+         }
+      }
+
+      return components;
    }
 
    protected List<String> parseLabels(JsonElement labelsElement) {

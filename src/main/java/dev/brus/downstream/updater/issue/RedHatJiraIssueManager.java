@@ -538,7 +538,9 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
          }
       }
 
-      issue.setDocumentation(issue.getSummary().startsWith("[Docs]") || issue.getLabels().contains("documentation"));
+      issue.setDocumentation(issue.getSummary().startsWith("[Docs]") ||
+         issue.getComponents().contains("documentation") ||
+         issue.getLabels().contains("documentation"));
 
       return issue;
    }

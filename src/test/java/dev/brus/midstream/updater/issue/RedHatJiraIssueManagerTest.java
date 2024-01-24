@@ -199,4 +199,91 @@ public class RedHatJiraIssueManagerTest {
 
       mockWebServer.shutdown();
    }
+
+   @Test
+   public void testLoadDocumentationIssue() throws Exception {
+      MockWebServer mockWebServer = new MockWebServer();
+      mockWebServer.start();
+
+      String upstreamServerBaseURL = "https://issues.apache.org/jira";
+      IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
+         null, "ARTEMIS"));
+
+      RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
+         null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
+
+      JsonObject emptySearchResultObject = new JsonObject();
+      {
+         emptySearchResultObject.addProperty("startAt", 0);
+         emptySearchResultObject.addProperty("maxResults", 0);
+         emptySearchResultObject.addProperty("total", 1);
+         emptySearchResultObject.add("issues", new JsonArray());
+      }
+      mockWebServer.enqueue(new MockResponse()
+         .addHeader("Content-Type", "application/json; charset=utf-8")
+         .setBody(emptySearchResultObject.toString()));
+
+      String downstreamIssueKey = "ENTMQBR-100";
+      JsonObject searchResultObject = new JsonObject();
+      {
+         searchResultObject.addProperty("startAt", 0);
+         searchResultObject.addProperty("maxResults", 0);
+         searchResultObject.addProperty("total", 1);
+
+         JsonArray issuesObject = new JsonArray();
+         {
+            JsonObject downstreamIssueObject = new JsonObject();
+            {
+               downstreamIssueObject.addProperty("key", downstreamIssueKey);
+               JsonObject fieldsObject = new JsonObject();
+               {
+                  JsonObject userObject = new JsonObject();
+                  userObject.addProperty("name", TEST_USER_NAME);
+                  fieldsObject.add("creator", userObject);
+                  fieldsObject.add("reporter", userObject);
+
+                  JsonObject statusObject = new JsonObject();
+                  statusObject.addProperty("name", "New");
+                  fieldsObject.add("status", statusObject);
+
+                  JsonObject issueTypeObject = new JsonObject();
+                  issueTypeObject.addProperty("name", "Bug");
+                  fieldsObject.add("issuetype", issueTypeObject);
+
+                  JsonArray componentsArray = new JsonArray();
+                  {
+                     JsonObject documentationComponentObject = new JsonObject();
+                     documentationComponentObject.addProperty("name", "documentation");
+                     componentsArray.add(documentationComponentObject);
+                  }
+                  fieldsObject.add("components", componentsArray);
+
+                  fieldsObject.addProperty("summary", "Test");
+                  fieldsObject.addProperty("created", "2000-01-01T00:00:00.000+0000");
+                  fieldsObject.addProperty("updated", "2000-01-01T00:00:00.000+0000");
+               }
+               downstreamIssueObject.add("fields", fieldsObject);
+            }
+            issuesObject.add(downstreamIssueObject);
+         }
+         searchResultObject.add("issues", issuesObject);
+      }
+      mockWebServer.enqueue(new MockResponse()
+         .addHeader("Content-Type", "application/json; charset=utf-8")
+         .setBody(searchResultObject.toString()));
+
+      issueManager.loadIssues();
+
+      Issue issue = issueManager.getIssue(downstreamIssueKey);
+      Assert.assertNotNull(issue);
+      Assert.assertTrue(issue.isDocumentation());
+
+      RecordedRequest statusIssueRecordedRequest = mockWebServer.takeRequest();
+      Assert.assertNotNull(statusIssueRecordedRequest.getBody());
+
+      RecordedRequest transitionsIssueRecordedRequest = mockWebServer.takeRequest();
+      Assert.assertNotNull(transitionsIssueRecordedRequest.getBody());
+
+      mockWebServer.shutdown();
+   }
 }

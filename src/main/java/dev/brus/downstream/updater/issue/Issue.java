@@ -30,6 +30,7 @@ public class Issue {
    private String type;
    private String summary;
    private String description;
+   private List<String> components;
    private List<String> labels;
    private List<String> issues;
    private Date created;
@@ -145,16 +146,21 @@ public class Issue {
    }
 
    public Issue() {
-      issues = new ArrayList<>();
+      components = new ArrayList<>();
       labels = new ArrayList<>();
+      issues = new ArrayList<>();
    }
 
-   public List<String> getIssues() {
-      return issues;
+   public List<String> getComponents() {
+      return components;
    }
 
    public List<String> getLabels() {
       return labels;
+   }
+
+   public List<String> getIssues() {
+      return issues;
    }
 
    public String getKey() {
