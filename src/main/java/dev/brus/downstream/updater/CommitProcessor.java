@@ -23,6 +23,7 @@ import dev.brus.downstream.updater.issue.DownstreamIssueManager;
 import dev.brus.downstream.updater.issue.Issue;
 import dev.brus.downstream.updater.issue.IssueCustomerPriority;
 import dev.brus.downstream.updater.issue.IssueManager;
+import dev.brus.downstream.updater.issue.IssuePatchPriority;
 import dev.brus.downstream.updater.issue.IssueReference;
 import dev.brus.downstream.updater.issue.IssueSecurityImpact;
 import dev.brus.downstream.updater.project.ProjectConfig;
@@ -86,6 +87,7 @@ public class CommitProcessor {
    private Map<String, Issue> excludedUpstreamIssues;
    private Map<String, List<String>> upstreamRevertingChains;
    private IssueCustomerPriority downstreamIssuesCustomerPriority;
+   private IssuePatchPriority downstreamIssuesPatchPriority;
    private IssueSecurityImpact downstreamIssuesSecurityImpact;
    private boolean downstreamIssuesRequired;
    private boolean checkIncompleteCommits;
@@ -171,10 +173,6 @@ public class CommitProcessor {
       return this;
    }
 
-   public IssueCustomerPriority getDownstreamIssuesCustomerPriority() {
-      return downstreamIssuesCustomerPriority;
-   }
-
    public Map<String, List<String>> getUpstreamRevertingChains() {
       return upstreamRevertingChains;
    }
@@ -184,8 +182,21 @@ public class CommitProcessor {
       return this;
    }
 
+   public IssueCustomerPriority getDownstreamIssuesCustomerPriority() {
+      return downstreamIssuesCustomerPriority;
+   }
+
    public CommitProcessor setDownstreamIssuesCustomerPriority(IssueCustomerPriority downstreamIssuesCustomerPriority) {
       this.downstreamIssuesCustomerPriority = downstreamIssuesCustomerPriority;
+      return this;
+   }
+
+   public IssuePatchPriority getDownstreamIssuesPatchPriority() {
+      return downstreamIssuesPatchPriority;
+   }
+
+   public CommitProcessor setDownstreamIssuesPatchPriority(IssuePatchPriority downstreamIssuesPatchPriority) {
+      this.downstreamIssuesPatchPriority = downstreamIssuesPatchPriority;
       return this;
    }
 
@@ -679,7 +690,8 @@ public class CommitProcessor {
          (downstreamIssue.isSecurity() && (getDownstreamIssuesSecurityImpact() == null ||
             downstreamIssue.getSecurityImpact() != null && getDownstreamIssuesSecurityImpact().compareTo(
                downstreamIssue.getSecurityImpact()) <= 0)) ||
-         (downstreamIssue.isPatch())));
+         (downstreamIssue.isPatch() && (getDownstreamIssuesPatchPriority() == null ||
+            getDownstreamIssuesPatchPriority() != IssuePatchPriority.NONE))));
    }
 
    private boolean isDownstreamIssueExcluded(Issue downstreamIssue) {

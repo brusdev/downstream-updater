@@ -17,6 +17,7 @@ streams:
     release: 7.8.5.EAP.CR1
     upstreamBranch: main
     downstreamBranch: 2.16.0.jbossorg-eap-x
+    downstreamIssuesRequired: true
     downstreamIssuesCustomerPriority: NONE
     downstreamIssuesSecurityImpact: IMPORTANT
   - name: 7.10

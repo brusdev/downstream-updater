@@ -34,6 +34,7 @@ public class ProjectConfigTest {
       Assert.assertEquals("AMQ Broker", projectConfig.getProject().getName());
       ProjectStream projectStream_78 = projectConfig.getProject().getStream("7.8");
       Assert.assertEquals(ProjectStream.Mode.VIEWING, projectStream_78.getMode());
+      Assert.assertEquals(true, projectStream_78.getDownstreamIssuesRequired());
       Assert.assertEquals(IssueCustomerPriority.NONE.name(), projectStream_78.getDownstreamIssuesCustomerPriority());
       Assert.assertEquals(IssueSecurityImpact.IMPORTANT.name(), projectStream_78.getDownstreamIssuesSecurityImpact());
       Assert.assertEquals(ProjectStream.Mode.VIEWING, projectConfig.getProject().getStream("7.8").getMode());

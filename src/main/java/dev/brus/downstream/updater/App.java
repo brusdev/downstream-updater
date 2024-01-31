@@ -10,6 +10,7 @@ import dev.brus.downstream.updater.issue.Issue;
 import dev.brus.downstream.updater.issue.IssueCustomerPriority;
 import dev.brus.downstream.updater.issue.IssueManager;
 import dev.brus.downstream.updater.issue.IssueManagerFactory;
+import dev.brus.downstream.updater.issue.IssuePatchPriority;
 import dev.brus.downstream.updater.issue.IssueReference;
 import dev.brus.downstream.updater.issue.IssueSecurityImpact;
 import dev.brus.downstream.updater.project.Project;
@@ -82,6 +83,7 @@ public class App {
    private static final String DOWNSTREAM_ISSUES_AUTH_STRING_OPTION = "downstream-issues-auth-string";
    private static final String DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION = "downstream-issues-project-key";
    private static final String DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY = "downstream-issues-customer-priority";
+   private static final String DOWNSTREAM_ISSUES_PATCH_PRIORITY = "downstream-issues-patch-priority";
    private static final String DOWNSTREAM_ISSUES_SECURITY_IMPACT = "downstream-issues-security-impact";
    private static final String DOWNSTREAM_ISSUES_REQUIRED = "downstream-issues-required";
    private static final String RELEASE_OPTION = "release";
@@ -135,6 +137,7 @@ public class App {
       parser.addOption(null, DOWNSTREAM_ISSUES_AUTH_STRING_OPTION, false, true, false, "the auth string to access downstream issues, i.e. \"Bearer ...\"");
       parser.addOption(null, DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION, false, true, false, "the project key to access downstream issues, i.e. ENTMQBR");
       parser.addOption(null, DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY, false, true, false, "the customer priority to filter downstream issues, i.e. HIGH");
+      parser.addOption(null, DOWNSTREAM_ISSUES_PATCH_PRIORITY, false, true, false, "the patch priority to filter downstream issues, i.e. HIGH");
       parser.addOption(null, DOWNSTREAM_ISSUES_SECURITY_IMPACT, false, true, false, "the security impact to filter downstream issues, i.e. IMPORTANT");
       parser.addOption(null, DOWNSTREAM_ISSUES_REQUIRED, false, false, true, "the downstream issues are required");
 
@@ -212,6 +215,9 @@ public class App {
 
       IssueCustomerPriority downstreamIssuesCustomerPriority = IssueCustomerPriority.fromName(
          line.getOptionValue(DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY, projectStream.getDownstreamIssuesCustomerPriority()));
+
+      IssuePatchPriority downstreamIssuesPatchPriority = IssuePatchPriority.fromName(
+         line.getOptionValue(DOWNSTREAM_ISSUES_PATCH_PRIORITY, projectStream.getDownstreamIssuesPatchPriority()));
 
       IssueSecurityImpact downstreamIssuesSecurityImpact = IssueSecurityImpact.fromName(
          line.getOptionValue(DOWNSTREAM_ISSUES_SECURITY_IMPACT, projectStream.getDownstreamIssuesSecurityImpact()));
@@ -489,6 +495,7 @@ public class App {
       commitProcessor.setExcludedUpstreamIssues(excludedUpstreamIssues);
       commitProcessor.setUpstreamRevertingChains(upstreamRevertingChains);
       commitProcessor.setDownstreamIssuesCustomerPriority(downstreamIssuesCustomerPriority);
+      commitProcessor.setDownstreamIssuesPatchPriority(downstreamIssuesPatchPriority);
       commitProcessor.setDownstreamIssuesSecurityImpact(downstreamIssuesSecurityImpact);
       commitProcessor.setDownstreamIssuesRequired(downstreamIssuesRequired);
       commitProcessor.setCheckIncompleteCommits(checkIncompleteCommits);

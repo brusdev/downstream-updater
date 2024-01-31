@@ -18,6 +18,7 @@ public class ProjectStream {
    private String upstreamBranch;
    private String downstreamBranch;
    private String downstreamIssuesCustomerPriority;
+   private String downstreamIssuesPatchPriority;
    private String downstreamIssuesSecurityImpact;
    private Boolean downstreamIssuesRequired;
    private List<String> excludedDownstreamIssues;
@@ -73,6 +74,14 @@ public class ProjectStream {
 
    public void setDownstreamIssuesCustomerPriority(String downstreamIssuesCustomerPriority) {
       this.downstreamIssuesCustomerPriority = downstreamIssuesCustomerPriority;
+   }
+
+   public String getDownstreamIssuesPatchPriority() {
+      return downstreamIssuesPatchPriority;
+   }
+
+   public void setDownstreamIssuesPatchPriority(String downstreamIssuesPatchPriority) {
+      this.downstreamIssuesPatchPriority = downstreamIssuesPatchPriority;
    }
 
    public String getDownstreamIssuesSecurityImpact() {
