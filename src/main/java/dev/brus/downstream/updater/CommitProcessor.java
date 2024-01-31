@@ -423,8 +423,8 @@ public class CommitProcessor {
 
          // Skip downstream issues with a resolution different from done.
          for (Issue downstreamIssue : downstreamIssuesGroups.get(selectedTargetRelease)) {
-            if (downstreamIssue.getResolution() == null || downstreamIssueManager.
-               getIssueResolutionDone().equals(downstreamIssue.getResolution())) {
+            if (downstreamIssue.getResolution() == null ||
+               downstreamIssue.getResolution().startsWith(downstreamIssueManager.getIssueResolutionDone())) {
                selectedDownstreamIssues.add(downstreamIssue);
             } else {
                logger.info("Downstream issue skipped because of the resolution " +
