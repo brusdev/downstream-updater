@@ -311,9 +311,6 @@ public class JiraIssueManager implements IssueManager {
          issue.getLabels().add(label);
       }
 
-      issue.setCustomerPriority(IssueCustomerPriority.NONE);
-      issue.setSecurityImpact(IssueSecurityImpact.NONE);
-
       return issue;
    }
 

@@ -11,6 +11,14 @@ checkCommand: 'mvn --show-version --activate-profiles=dev,redhat-indy --define=f
 checkTestCommand: 'mvn --show-version --activate-profiles=dev,tests,redhat-indy --define=failIfNoTests=false --define=test=${TEST}  --define=sts-http-host=${HOSTIP} --define=webdriver.remote.server=http://selenium-grid-service.jenkins-csb-amq-broker.svc.cluster.local:4444/wd/hub --define=artemis.console.index.logo.image=/images/amq-broker-logo.svg --define=artemis.console.login.brand.image=/redhat-branding/plugin/img/Logo-RedHat-A-Reverse-RGB.png clean package'
 targetReleaseFormat: "AMQ %d.%d.%d.GA"
 streams:
+  - name: '7.8'
+    enabled: false
+    assignee: dbruscin
+    release: 7.8.5.EAP.CR1
+    upstreamBranch: main
+    downstreamBranch: 2.16.0.jbossorg-eap-x
+    downstreamIssuesCustomerPriority: NONE
+    downstreamIssuesSecurityImpact: IMPORTANT
   - name: 7.10
     enabled: true
     assignee: dbruscin

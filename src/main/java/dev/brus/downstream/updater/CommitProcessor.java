@@ -260,8 +260,8 @@ public class CommitProcessor {
       this.confirmedUpstreamIssues = Collections.emptyMap();
       this.excludedUpstreamIssues = Collections.emptyMap();
       this.upstreamRevertingChains = Collections.emptyMap();
-      this.downstreamIssuesCustomerPriority = IssueCustomerPriority.NONE;
-      this.downstreamIssuesSecurityImpact = IssueSecurityImpact.NONE;
+      this.downstreamIssuesCustomerPriority = null;
+      this.downstreamIssuesSecurityImpact = null;
       this.checkIncompleteCommits = true;
       this.checkTestsCommand = null;
       this.checkCommand = null;
@@ -658,9 +658,13 @@ public class CommitProcessor {
 
    private boolean isCommitRequired(Issue downstreamIssue) {
       return (downstreamIssueManager.getIssueTypeBug().equals(downstreamIssue.getType()) && (
-         (downstreamIssue.isCustomer() && downstreamIssuesCustomerPriority.compareTo(downstreamIssue.getCustomerPriority()) <= 0) ||
-            (downstreamIssue.isSecurity() && downstreamIssuesSecurityImpact.compareTo(downstreamIssue.getSecurityImpact()) <= 0) ||
-            (downstreamIssue.isPatch())));
+         (downstreamIssue.isCustomer() && (getDownstreamIssuesCustomerPriority() == null ||
+            downstreamIssue.getCustomerPriority() != null && getDownstreamIssuesCustomerPriority().compareTo(
+               downstreamIssue.getCustomerPriority()) <= 0)) ||
+         (downstreamIssue.isSecurity() && (getDownstreamIssuesSecurityImpact() == null ||
+            downstreamIssue.getSecurityImpact() != null && getDownstreamIssuesSecurityImpact().compareTo(
+               downstreamIssue.getSecurityImpact()) <= 0)) ||
+         (downstreamIssue.isPatch())));
    }
 
    private boolean isDownstreamIssueExcluded(Issue downstreamIssue) {

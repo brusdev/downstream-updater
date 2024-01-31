@@ -2,8 +2,9 @@ package dev.brus.midstream.updater.project;
 
 import java.io.File;
 import java.net.URI;
-import java.nio.file.Files;
 
+import dev.brus.downstream.updater.issue.IssueCustomerPriority;
+import dev.brus.downstream.updater.issue.IssueSecurityImpact;
 import dev.brus.downstream.updater.project.Project;
 import dev.brus.downstream.updater.project.ProjectConfig;
 import dev.brus.downstream.updater.project.ProjectStream;
@@ -25,24 +26,25 @@ public class ProjectConfigTest {
    public TemporaryFolder testFolder = new TemporaryFolder();
 
    @Test
-   public void testExcludedUpstreamIssue() throws Exception {
-      String branch = "main";
+   public void testProjectStreams() throws Exception {
       File repoDir = testFolder.newFolder("repo");
-      FileUtils.copyFileToDirectory(new File("src/test/resources/" + TEST_PROJECT_CONFIG), repoDir);
-      CommandExecutor.execute("git init --initial-branch " + branch, repoDir);
-      CommandExecutor.execute("git config user.name '" + TEST_USER_NAME + "'", repoDir);
-      CommandExecutor.execute("git config user.email '" + TEST_USER_EMAIL + "'", repoDir);
-      CommandExecutor.execute("git add --all", repoDir);
-      CommandExecutor.execute("git commit --message 'Initial commit'", repoDir);
+      ProjectConfig projectConfig = loadProjectConfig(repoDir);
 
+      Assert.assertNotNull(projectConfig.getProject());
+      Assert.assertEquals("AMQ Broker", projectConfig.getProject().getName());
+      ProjectStream projectStream_78 = projectConfig.getProject().getStream("7.8");
+      Assert.assertEquals(ProjectStream.Mode.VIEWING, projectStream_78.getMode());
+      Assert.assertEquals(IssueCustomerPriority.NONE.name(), projectStream_78.getDownstreamIssuesCustomerPriority());
+      Assert.assertEquals(IssueSecurityImpact.IMPORTANT.name(), projectStream_78.getDownstreamIssuesSecurityImpact());
+      Assert.assertEquals(ProjectStream.Mode.VIEWING, projectConfig.getProject().getStream("7.8").getMode());
+      Assert.assertEquals(ProjectStream.Mode.VIEWING, projectConfig.getProject().getStream("7.10").getMode());
+      Assert.assertEquals(ProjectStream.Mode.MANAGING, projectConfig.getProject().getStream("7.11").getMode());
+   }
 
-      File targetDir = testFolder.newFolder("target");
-      String repo = "file://" + repoDir.getAbsolutePath();
-      ProjectConfig projectConfig = new ProjectConfig(repo, null, branch, TEST_PROJECT_CONFIG, targetDir);
-      projectConfig.setRepositoryUserName(TEST_USER_NAME);
-      projectConfig.setRepositoryUserEmail(TEST_USER_EMAIL);
-
-      projectConfig.load();
+   @Test
+   public void testExcludedUpstreamIssue() throws Exception {
+      File repoDir = testFolder.newFolder("repo");
+      ProjectConfig projectConfig = loadProjectConfig(repoDir);
 
       Assert.assertNotNull(projectConfig.getProject());
       Assert.assertEquals("AMQ Broker", projectConfig.getProject().getName());
@@ -60,6 +62,27 @@ public class ProjectConfigTest {
       testExcludedUpstreamIssue(projectConfig, "7.11", "UP-1234");
 
       testExcludedUpstreamIssue(projectConfig, "7.10", "UP-1234");
+   }
+
+   private ProjectConfig loadProjectConfig(File repoDir) throws Exception {
+      String branch = "main";
+      FileUtils.copyFileToDirectory(new File("src/test/resources/" + TEST_PROJECT_CONFIG), repoDir);
+      CommandExecutor.execute("git init --initial-branch " + branch, repoDir);
+      CommandExecutor.execute("git config user.name '" + TEST_USER_NAME + "'", repoDir);
+      CommandExecutor.execute("git config user.email '" + TEST_USER_EMAIL + "'", repoDir);
+      CommandExecutor.execute("git add --all", repoDir);
+      CommandExecutor.execute("git commit --message 'Initial commit'", repoDir);
+
+
+      File targetDir = testFolder.newFolder("target");
+      String repo = "file://" + repoDir.getAbsolutePath();
+      ProjectConfig projectConfig = new ProjectConfig(repo, null, branch, TEST_PROJECT_CONFIG, targetDir);
+      projectConfig.setRepositoryUserName(TEST_USER_NAME);
+      projectConfig.setRepositoryUserEmail(TEST_USER_EMAIL);
+
+      projectConfig.load();
+
+      return projectConfig;
    }
 
    private void testExcludedUpstreamIssue(ProjectConfig projectConfig, String projectStreamName, String excludedUpstreamIssue) throws Exception {

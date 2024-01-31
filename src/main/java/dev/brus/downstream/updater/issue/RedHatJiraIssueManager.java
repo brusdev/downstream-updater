@@ -526,7 +526,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
          (sfdcCasesLinksElement != null && !sfdcCasesLinksElement.isJsonNull()) ||
          (sfdcCasesCounterElement != null && !sfdcCasesCounterElement.isJsonNull()));
       issue.setCustomerPriority(gssPriorityElement != null && !gssPriorityElement.isJsonNull() ? IssueCustomerPriority.fromName(
-         gssPriorityElement.getAsJsonObject().get("value").getAsString()) : IssueCustomerPriority.NONE);
+         gssPriorityElement.getAsJsonObject().get("value").getAsString()) : null);
 
       //"id":"customfield_12311640","name":"Security Sensitive Issue"
       JsonElement securitySensitiveIssueElement = issueFields.get("customfield_12311640");

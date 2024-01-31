@@ -18,13 +18,16 @@
 package dev.brus.downstream.updater.issue;
 
 public enum IssueSecurityImpact {
-   NONE,
    LOW,
    MODERATE,
    IMPORTANT,
-   CRITICAL;
+   CRITICAL,
+   NONE;
 
    public static IssueSecurityImpact fromName(String type) {
+      if (type == null) {
+         return null;
+      }
       return IssueSecurityImpact.valueOf(type.toUpperCase());
    }
 }

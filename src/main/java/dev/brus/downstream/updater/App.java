@@ -209,10 +209,10 @@ public class App {
       String downstreamIssuesProjectKey = line.getOptionValue(DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION, project.getDownstreamIssuesProjectKey());
 
       IssueCustomerPriority downstreamIssuesCustomerPriority = IssueCustomerPriority.fromName(
-         line.getOptionValue(DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY, IssueCustomerPriority.NONE.name()));
+         line.getOptionValue(DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY, projectStream.getDownstreamIssuesCustomerPriority()));
 
       IssueSecurityImpact downstreamIssuesSecurityImpact = IssueSecurityImpact.fromName(
-         line.getOptionValue(DOWNSTREAM_ISSUES_SECURITY_IMPACT, IssueSecurityImpact.NONE.name()));
+         line.getOptionValue(DOWNSTREAM_ISSUES_SECURITY_IMPACT, projectStream.getDownstreamIssuesSecurityImpact()));
 
       String upstreamIssuesServerURL = line.getOptionValue(UPSTREAM_ISSUES_SERVER_URL_OPTION, project.getUpstreamIssuesServer());
       String upstreamIssuesAuthString = line.getOptionValue(UPSTREAM_ISSUES_AUTH_STRING_OPTION);

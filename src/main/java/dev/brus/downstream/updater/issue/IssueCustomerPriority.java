@@ -18,14 +18,17 @@
 package dev.brus.downstream.updater.issue;
 
 public enum IssueCustomerPriority {
-   NONE,
    SCHEDULED,
    LOW,
    MEDIUM,
    HIGH,
-   URGENT;
+   URGENT,
+   NONE;
 
    public static IssueCustomerPriority fromName(String type) {
+      if (type == null) {
+         return null;
+      }
       return IssueCustomerPriority.valueOf(type.toUpperCase());
    }
 }
