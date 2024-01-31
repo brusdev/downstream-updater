@@ -87,6 +87,7 @@ public class CommitProcessor {
    private Map<String, List<String>> upstreamRevertingChains;
    private IssueCustomerPriority downstreamIssuesCustomerPriority;
    private IssueSecurityImpact downstreamIssuesSecurityImpact;
+   private boolean downstreamIssuesRequired;
    private boolean checkIncompleteCommits;
    private String checkCommand;
    private String checkTestsCommand;
@@ -197,6 +198,15 @@ public class CommitProcessor {
       return this;
    }
 
+   public boolean isDownstreamIssuesRequired() {
+      return downstreamIssuesRequired;
+   }
+
+   public CommitProcessor setDownstreamIssuesRequired(boolean downstreamIssuesRequired) {
+      this.downstreamIssuesRequired = downstreamIssuesRequired;
+      return this;
+   }
+
    public boolean isCheckIncompleteCommits() {
       return checkIncompleteCommits;
    }
@@ -262,6 +272,7 @@ public class CommitProcessor {
       this.upstreamRevertingChains = Collections.emptyMap();
       this.downstreamIssuesCustomerPriority = null;
       this.downstreamIssuesSecurityImpact = null;
+      this.downstreamIssuesRequired = false;
       this.checkIncompleteCommits = true;
       this.checkTestsCommand = null;
       this.checkCommand = null;
@@ -564,7 +575,7 @@ public class CommitProcessor {
                }
             }
          }
-      } else {
+      } else if (!downstreamIssuesRequired) {
          // No selected downstream issues
 
          if (cherryPickedCommit != null) {
@@ -611,6 +622,10 @@ public class CommitProcessor {
                }
             }
          }
+      } else {
+         logger.info("SKIPPED because the the downstream issue is required");
+         commit.setState(Commit.State.SKIPPED).setReason("DOWNSTREAM_ISSUE_NOT_FOUND");
+         return commit;
       }
 
       if (commit.getTasks().stream().anyMatch(commitTask -> commitTask.getState() == CommitTask.State.BLOCKED) &&

@@ -83,6 +83,7 @@ public class App {
    private static final String DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION = "downstream-issues-project-key";
    private static final String DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY = "downstream-issues-customer-priority";
    private static final String DOWNSTREAM_ISSUES_SECURITY_IMPACT = "downstream-issues-security-impact";
+   private static final String DOWNSTREAM_ISSUES_REQUIRED = "downstream-issues-required";
    private static final String RELEASE_OPTION = "release";
    private static final String TARGET_RELEASE_FORMAT_OPTION = "target-release-format";
    private static final String ASSIGNEE_OPTION = "assignee";
@@ -135,6 +136,7 @@ public class App {
       parser.addOption(null, DOWNSTREAM_ISSUES_PROJECT_KEY_OPTION, false, true, false, "the project key to access downstream issues, i.e. ENTMQBR");
       parser.addOption(null, DOWNSTREAM_ISSUES_CUSTOMER_PRIORITY, false, true, false, "the customer priority to filter downstream issues, i.e. HIGH");
       parser.addOption(null, DOWNSTREAM_ISSUES_SECURITY_IMPACT, false, true, false, "the security impact to filter downstream issues, i.e. IMPORTANT");
+      parser.addOption(null, DOWNSTREAM_ISSUES_REQUIRED, false, false, true, "the downstream issues are required");
 
       parser.addOption(null, CHECK_INCOMPLETE_COMMITS_OPTION, false, false, true, "check tasks of cherry-picked commits");
       parser.addOption(null, CHECK_COMMAND_OPTION, false, true, true, "command to check cherry-picked commits");
@@ -213,6 +215,9 @@ public class App {
 
       IssueSecurityImpact downstreamIssuesSecurityImpact = IssueSecurityImpact.fromName(
          line.getOptionValue(DOWNSTREAM_ISSUES_SECURITY_IMPACT, projectStream.getDownstreamIssuesSecurityImpact()));
+
+      boolean downstreamIssuesRequired = Boolean.parseBoolean(line.getOptionValue(DOWNSTREAM_ISSUES_REQUIRED,
+         projectStream.getDownstreamIssuesRequired().toString()));
 
       String upstreamIssuesServerURL = line.getOptionValue(UPSTREAM_ISSUES_SERVER_URL_OPTION, project.getUpstreamIssuesServer());
       String upstreamIssuesAuthString = line.getOptionValue(UPSTREAM_ISSUES_AUTH_STRING_OPTION);
@@ -485,6 +490,7 @@ public class App {
       commitProcessor.setUpstreamRevertingChains(upstreamRevertingChains);
       commitProcessor.setDownstreamIssuesCustomerPriority(downstreamIssuesCustomerPriority);
       commitProcessor.setDownstreamIssuesSecurityImpact(downstreamIssuesSecurityImpact);
+      commitProcessor.setDownstreamIssuesRequired(downstreamIssuesRequired);
       commitProcessor.setCheckIncompleteCommits(checkIncompleteCommits);
       commitProcessor.setCheckCommand(checkCommand);
       commitProcessor.setCheckTestsCommand(checkTestsCommand);

@@ -368,6 +368,12 @@ public class CommitProcessorTest {
       Assert.assertEquals(Commit.Action.STEP, commit.getTasks().get(0).getAction());
       Assert.assertEquals(CommitTask.Type.CLONE_UPSTREAM_ISSUE, commit.getTasks().get(0).getType());
       Assert.assertEquals(UPSTREAM_ISSUE_KEY_1, commit.getTasks().get(0).getArgs().get("issueKey"));
+
+      commitProcessor.setDownstreamIssuesRequired(true);
+      commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
+      Assert.assertEquals("DOWNSTREAM_ISSUE_NOT_FOUND", commit.getReason());
    }
 
    @Test

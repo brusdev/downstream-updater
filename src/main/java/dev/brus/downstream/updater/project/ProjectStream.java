@@ -19,6 +19,7 @@ public class ProjectStream {
    private String downstreamBranch;
    private String downstreamIssuesCustomerPriority;
    private String downstreamIssuesSecurityImpact;
+   private Boolean downstreamIssuesRequired;
    private List<String> excludedDownstreamIssues;
    private List<String> excludedUpstreamIssues;
 
@@ -82,6 +83,14 @@ public class ProjectStream {
       this.downstreamIssuesSecurityImpact = downstreamIssuesSecurityImpact;
    }
 
+   public Boolean getDownstreamIssuesRequired() {
+      return downstreamIssuesRequired;
+   }
+
+   public void setDownstreamIssuesRequired(Boolean downstreamIssuesRequired) {
+      this.downstreamIssuesRequired = downstreamIssuesRequired;
+   }
+
    public void setDownstreamBranch(String downstreamBranch) {
       this.downstreamBranch = downstreamBranch;
    }
@@ -104,6 +113,7 @@ public class ProjectStream {
 
    public ProjectStream() {
       this.mode = Mode.VIEWING;
+      this.downstreamIssuesRequired = false;
       this.excludedDownstreamIssues = new ArrayList<>();
       this.excludedUpstreamIssues = new ArrayList<>();
    }
