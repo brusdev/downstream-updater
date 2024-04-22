@@ -371,7 +371,9 @@ public class CommitProcessor {
       commit.setAssignee(getAssignee(upstreamCommit, upstreamIssues, null).getUsername());
 
       if (upstreamIssues.isEmpty()) {
-         if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
+         if (cherryPickedCommit != null) {
+            commit.setState(Commit.State.DONE);
+         } else if (processCommitTask(commit, release, CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT,
             Commit.Action.FORCE, Map.of("upstreamCommit", commit.getUpstreamCommit()),
             Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks)) {
             commit.setState(Commit.State.DONE);

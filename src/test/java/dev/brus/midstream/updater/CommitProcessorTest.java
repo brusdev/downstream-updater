@@ -293,6 +293,32 @@ public class CommitProcessorTest {
    }
 
    @Test
+   public void testCherryPickedCommitWithoutUpstreamIssue() throws Exception {
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName(COMMIT_NAME_0)
+         .setShortMessage(TEST_MESSAGE_NO_ISSUE_KEY)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      Map<String, Map.Entry<GitCommit, ReleaseVersion>> cherryPickedCommits = new HashMap<>();
+      cherryPickedCommits.put(upstreamCommit.getName(), new AbstractMap.SimpleEntry<>(new MockGitCommit(), releaseVersion));
+      commitProcessor.setCherryPickedCommits(cherryPickedCommits);
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.DONE, commit.getState());
+      Assert.assertEquals(TEST_USER_NAME, commit.getAssignee());
+   }
+
+   @Test
    public void testCommitWithMultipleUpstreamIssues() throws Exception {
       String commitShortMessage = UPSTREAM_ISSUE_KEY_0 + "," + UPSTREAM_ISSUE_KEY_1 + " " + TEST_MESSAGE;
       MockGitCommit upstreamCommit = new MockGitCommit()
