@@ -759,6 +759,8 @@ public class CommitProcessorTest {
 
       Assert.assertEquals(Commit.State.TODO, commit.getState());
       Assert.assertEquals(2, commit.getTasks().size());
+      Assert.assertEquals(1, commit.getDownstreamIssues().size());
+      Assert.assertEquals(DOWNSTREAM_ISSUE_KEY_0, commit.getDownstreamIssues().get(0).getKey());
 
       CommitTask doneTask = commit.getTasks().get(0);
       Assert.assertEquals(CommitTask.Type.CLONE_UPSTREAM_ISSUE, doneTask.getType());

@@ -1062,6 +1062,8 @@ public class CommitProcessor {
 
       upstreamIssue.getIssues().add(downstreamIssue.getKey());
 
+      commit.getDownstreamIssues().add(new IssueReference(downstreamIssue));
+
       return downstreamIssue;
    }
 
