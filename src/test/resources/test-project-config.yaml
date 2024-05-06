@@ -27,7 +27,7 @@ streams:
     upstreamBranch: main
     downstreamBranch: 2.21.0.jbossorg-x
     excludedUpstreamIssues:
-      - ARTEMIS-0
+      - key: ARTEMIS-0
   - name: 7.11
     enabled: true
     mode: MANAGING

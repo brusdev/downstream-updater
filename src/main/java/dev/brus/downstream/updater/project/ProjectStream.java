@@ -21,8 +21,8 @@ public class ProjectStream {
    private String downstreamIssuesPatchPriority;
    private String downstreamIssuesSecurityImpact;
    private Boolean downstreamIssuesRequired;
-   private List<String> excludedDownstreamIssues;
-   private List<String> excludedUpstreamIssues;
+   private List<ProjectStreamIssue> excludedDownstreamIssues;
+   private List<ProjectStreamIssue> excludedUpstreamIssues;
 
    public String getName() {
       return name;
@@ -104,19 +104,19 @@ public class ProjectStream {
       this.downstreamBranch = downstreamBranch;
    }
 
-   public List<String> getExcludedDownstreamIssues() {
+   public List<ProjectStreamIssue> getExcludedDownstreamIssues() {
       return excludedDownstreamIssues;
    }
 
-   public void setExcludedDownstreamIssues(List<String> excludedDownstreamIssues) {
+   public void setExcludedDownstreamIssues(List<ProjectStreamIssue> excludedDownstreamIssues) {
       this.excludedDownstreamIssues = excludedDownstreamIssues;
    }
 
-   public List<String> getExcludedUpstreamIssues() {
+   public List<ProjectStreamIssue> getExcludedUpstreamIssues() {
       return excludedUpstreamIssues;
    }
 
-   public void setExcludedUpstreamIssues(List<String> excludedUpstreamIssues) {
+   public void setExcludedUpstreamIssues(List<ProjectStreamIssue> excludedUpstreamIssues) {
       this.excludedUpstreamIssues = excludedUpstreamIssues;
    }
 

@@ -81,11 +81,11 @@ public class ProjectConfig {
       project = Project.load(new File(gitRepository.getDirectory(), path));
    }
 
-   public void addExcludedUpstreamIssue(String issueKey, String streamName, int retries) throws Exception {
+   public void addExcludedUpstreamIssue(String issueKey, String end, String streamName, int retries) throws Exception {
       while (true) {
          try {
             retries--;
-            addExcludedUpstreamIssue(issueKey, streamName);
+            addExcludedUpstreamIssue(issueKey, end, streamName);
             break;
          } catch (Exception e) {
             logger.debug("Failed to exclude upstream issue " + issueKey + ": " + e);
@@ -98,18 +98,27 @@ public class ProjectConfig {
       }
    }
 
-   public void addExcludedUpstreamIssue(String issueKey, String streamName) throws Exception {
+   public void addExcludedUpstreamIssue(String issueKey, String end, String streamName) throws Exception {
       load();
 
+      ProjectStream projectStream = project.getStream(streamName);
+      ProjectStreamIssue issue = new ProjectStreamIssue();
+      issue.setKey(issueKey);
+      issue.setEnd(end);
+
+      String issueJson = "{\"key\":\"" + issueKey + "\"" +
+         (end != null ? ",\"end\":\"" + end + "\"}" : "}");
+
       CommandExecutor.execute("yq -i '(.streams[] | select(.name == \"" + streamName
-         + "\" ) | .excludedUpstreamIssues) += [\"" + issueKey + "\"] ' " + path,
+         + "\" ) | .excludedUpstreamIssues) += [" + issueJson + "] ' " + path,
          gitRepository.getDirectory(), null);
 
       gitRepository.add(path);
-      gitRepository.commit("Exclude " + issueKey + " from " + project.getName() + " " + streamName);
+      gitRepository.commit("Exclude " + issueKey + " from " + project.getName() + " " +
+         (end != null ? "until " + end + " " : "") + streamName);
       gitRepository.push("origin", branch);
 
-      project.getStream(streamName).getExcludedUpstreamIssues().add(issueKey);
+      projectStream.getExcludedUpstreamIssues().add(issue);
    }
 
    private void loadRepository() throws Exception {

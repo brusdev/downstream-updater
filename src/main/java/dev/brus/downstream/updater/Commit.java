@@ -27,6 +27,7 @@ public class Commit {
       NONE,
       STEP,
       FORCE,
+      HOLD,
       SKIP,
    }
 

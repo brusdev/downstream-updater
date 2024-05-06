@@ -68,6 +68,7 @@ public class CommitProcessorTest {
    public TemporaryFolder testFolder = new TemporaryFolder();
 
    private ReleaseVersion releaseVersion;
+   private ReleaseVersion nextReleaseVersion;
    private Project project;
    private ProjectConfig projectConfig;
    private ProjectStream previousProjectStream;
@@ -85,6 +86,8 @@ public class CommitProcessorTest {
    @Before
    public void initMocks() throws Exception {
       releaseVersion = ReleaseVersion.fromString("1.1.0.CR1");
+      nextReleaseVersion = new ReleaseVersion(releaseVersion.getMajor(),
+         releaseVersion.getMinor() + 1, 0, releaseVersion.getQualifier(), "CR1");
 
       testUser = new User()
          .setName(TEST_USER_NAME)
@@ -431,7 +434,7 @@ public class CommitProcessorTest {
 
       Commit newCommit = commitProcessor.process(upstreamCommit);
       Assert.assertEquals(Commit.State.NEW, newCommit.getState());
-      Assert.assertEquals(3, newCommit.getTasks().size());
+      Assert.assertEquals(4, newCommit.getTasks().size());
 
       Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
          .setType(ISSUE_TYPE_BUG)
@@ -766,6 +769,72 @@ public class CommitProcessorTest {
       Assert.assertEquals(CommitTask.State.NEW, todoTask.getState());
 
       Assert.assertEquals(ISSUE_STATE_TODO, downstreamIssue.getState());
+   }
+
+   @Test
+   public void testHoldUpstreamIssue() throws Exception {
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName(COMMIT_NAME_0)
+         .setShortMessage(commitShortMessage)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0).setType(ISSUE_TYPE_BUG).setSummary(TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+
+      Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0);
+
+      Mockito.when(downstreamIssueManager.createIssue(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(downstreamIssue);
+      Mockito.when(downstreamIssueManager.getIssueStateToDo()).thenReturn(ISSUE_STATE_TODO);
+
+      Mockito.doAnswer(invocationContext -> downstreamIssue.setState(invocationContext.getArgument(1))).
+         when(downstreamIssueManager).transitionIssue(Mockito.any(), Mockito.any());
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      Commit newCommit = commitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.NEW, newCommit.getState());
+      Assert.assertEquals(4, newCommit.getTasks().size());
+
+      Map<String, Commit> confirmedCommits = new HashMap<>();
+      Commit confirmedCommit = new Commit().
+         setUpstreamCommit(upstreamCommit.getName()).
+         setTasks(Collections.singletonList(
+         new CommitTask().
+            setAction(Commit.Action.HOLD).
+            setType(CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE).
+            setArgs(Map.of("issueKey", UPSTREAM_ISSUE_KEY_0)).
+            setUserArgs(Map.of("end", nextReleaseVersion.toString()))));
+      confirmedCommits.put(upstreamCommit.getName(), confirmedCommit);
+
+      commitProcessor.setConfirmedCommits(confirmedCommits);
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
+      Assert.assertEquals(3, commit.getTasks().size());
+
+      CommitTask cloneTask = commit.getTasks().get(0);
+      Assert.assertEquals(CommitTask.Type.CLONE_UPSTREAM_ISSUE, cloneTask.getType());
+      Assert.assertEquals(CommitTask.State.NEW, cloneTask.getState());
+
+      CommitTask cherryPickTask = commit.getTasks().get(1);
+      Assert.assertEquals(CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT, cherryPickTask.getType());
+      Assert.assertEquals(CommitTask.State.NEW, cherryPickTask.getState());
+
+      CommitTask excludeTask = commit.getTasks().get(2);
+      Assert.assertEquals(CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE, excludeTask.getType());
+      Assert.assertEquals(CommitTask.State.DONE, excludeTask.getState());
    }
 
    @Test
