@@ -10,6 +10,8 @@ public class ReleaseVersionTest {
    public void testReleaseVersionToString() {
       testReleaseVersionToString("7.10.0.CR1");
       testReleaseVersionToString("7.10.0.OPR.1.CR1");
+      testReleaseVersionToString("7.10.0.OPR.1.ER1");
+      testReleaseVersionToString("7.10.0.OPR.1.SR1");
       testReleaseVersionToString("7.10.0.OPR.1.PATCH.1234");
    }
 
