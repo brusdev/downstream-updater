@@ -544,6 +544,61 @@ public class CommitProcessorTest {
    }
 
    @Test
+   public void testCommitCherryPickedWithNextTargetRelease() throws Exception {
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName(UPSTREAM_ISSUE_KEY_0)
+         .setShortMessage(TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      MockGitCommit downstreamCommit = new MockGitCommit()
+         .setName(DOWNSTREAM_ISSUE_KEY_0)
+         .setShortMessage(TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0)
+         .setFullMessage("downstream: " + DOWNSTREAM_ISSUE_KEY_0)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0).setType(ISSUE_TYPE_BUG);
+
+      Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
+         .setType(ISSUE_TYPE_BUG)
+         .setTargetRelease("1.1.1.GA")
+         .setCustomer(true)
+         .setCustomerPriority(IssueCustomerPriority.HIGH);
+      downstreamIssue.getLabels().add(ISSUE_STATE_DEV_COMPLETE);
+      downstreamIssue.getLabels().add(releaseVersion.getCandidate());
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+      commitProcessor.setCherryPickedCommits(Collections.singletonMap(UPSTREAM_ISSUE_KEY_0, new AbstractMap.SimpleEntry<>(downstreamCommit, releaseVersion)));
+
+      Mockito.when(gitRepository.resolveCommit(upstreamCommit.getName())).thenReturn(upstreamCommit);
+      Mockito.when(gitRepository.resolveCommit(downstreamCommit.getName())).thenReturn(downstreamCommit);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(Mockito.anyString())).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+
+      Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
+      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
+      Mockito.when(downstreamIssueManager.getIssueStateDevComplete()).thenReturn(ISSUE_STATE_DEV_COMPLETE);
+      Mockito.when(downstreamIssueManager.parseIssueKeys(Mockito.anyString())).thenReturn(Arrays.asList(DOWNSTREAM_ISSUE_KEY_0));
+
+      IssueStateMachine downstreamIssueStateMachine = Mockito.mock(IssueStateMachine.class);
+      Mockito.when(downstreamIssueStateMachine.getStateIndex(Mockito.any())).thenReturn(0);
+      Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
+      Assert.assertEquals("DOWNSTREAM_ISSUES_WITH_NEXT_TARGET_RELEASE_EXIST", commit.getReason());
+   }
+
+   @Test
    public void testCommitIncludedInRevertingChain() throws Exception {
       String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
       MockGitCommit revertedUpstreamCommit = new MockGitCommit()
@@ -924,5 +979,48 @@ public class CommitProcessorTest {
 
       Assert.assertEquals(Commit.State.NEW, commit.getState());
       Assert.assertEquals("DOWNSTREAM_ISSUES_SUFFICIENT_BUT_NONE_WITH_REQUIRED_TARGET_RELEASE", commit.getReason());
+   }
+
+   @Test
+   public void testCommitWithNextTargetRelease() throws Exception {
+      String commitShortMessage = TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0;
+      MockGitCommit upstreamCommit = new MockGitCommit()
+         .setName(COMMIT_NAME_0)
+         .setShortMessage(commitShortMessage)
+         .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0)
+         .setType(ISSUE_TYPE_BUG);
+      upstreamIssue.getIssues().add(DOWNSTREAM_ISSUE_KEY_0);
+
+      Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0)
+         .setType(ISSUE_TYPE_BUG)
+         .setCustomer(true)
+         .setCustomerPriority(IssueCustomerPriority.HIGH)
+         .setTargetRelease("1.1.1.CR1");
+      downstreamIssue.getLabels().add(ISSUE_LABEL_NO_BACKPORT_NEEDED);
+      downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+
+      Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
+      Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      Commit commit = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
+      Assert.assertEquals("DOWNSTREAM_ISSUES_WITH_NEXT_TARGET_RELEASE_EXIST", commit.getReason());
    }
 }

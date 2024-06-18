@@ -48,4 +48,12 @@ public class ReleaseVersionTest {
       Assert.assertEquals("OPR.", ReleaseVersion.fromString("7.10.0.OPR.1.CR1").getQualifierPrefix());
       Assert.assertNull(ReleaseVersion.fromString("7.10.0.CR1").getQualifierPrefix());
    }
+
+   @Test
+   public void testCompareReleaseStreamTo() {
+      Assert.assertEquals(0, ReleaseVersion.fromString("7.10.0.CR1").compareReleaseStreamTo(ReleaseVersion.fromString("7.10.0.CR2")));
+      Assert.assertEquals(0, ReleaseVersion.fromString("7.10.0.CR1").compareReleaseStreamTo(ReleaseVersion.fromString("7.10.1.CR1")));
+      Assert.assertEquals(1, ReleaseVersion.fromString("7.10.0.CR1").compareReleaseStreamTo(ReleaseVersion.fromString("7.9.0.CR1")));
+      Assert.assertEquals(-1, ReleaseVersion.fromString("7.10.0.CR1").compareReleaseStreamTo(ReleaseVersion.fromString("7.11.0.CR1")));
+   }
 }

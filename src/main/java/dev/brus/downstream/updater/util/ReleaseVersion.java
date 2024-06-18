@@ -147,4 +147,15 @@ public class ReleaseVersion implements Comparable<ReleaseVersion> {
 
       return compareTo(comparingReleaseVersion);
    }
+
+   public int compareReleaseStreamTo(ReleaseVersion releaseVersion) {
+      ReleaseVersion comparingReleaseVersion = new ReleaseVersion(
+         releaseVersion.getMajor(),
+         releaseVersion.getMinor(),
+         this.getPatch(),
+         this.getQualifier(),
+         this.getCandidate());
+
+      return compareTo(comparingReleaseVersion);
+   }
 }

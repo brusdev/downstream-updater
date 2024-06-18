@@ -476,10 +476,14 @@ public class CommitProcessor {
          return commit;
       }
 
-      // The commits related to downstream issues fixed in another release requires
-      // a downstream release issue if they are cherry-picked to a branch after the first release
-      boolean requireReleaseIssues =  candidateReleaseVersion.getPatch() > 0 ||
-         !isAnyPreviousDownstreamIssueDone(candidateReleaseVersion, allDownstreamIssues);
+      // The commits related to downstream issues require a downstream release issue:
+      // - when they are cherry-picked before the first release and no done downstream issues in a previous release
+      // - when they are cherry-picked after the first release and no done downstream issues in the same release stream
+      boolean requireReleaseIssues =
+         (candidateReleaseVersion.getPatch() == 0 &&
+         !isAnyPreviousDownstreamIssueDone(candidateReleaseVersion, allDownstreamIssues, true)) ||
+         (candidateReleaseVersion.getPatch() > 0 &&
+            !isAnyPreviousDownstreamIssueDone(candidateReleaseVersion, allDownstreamIssues, false));
 
       if (!selectedDownstreamIssues.isEmpty()) {
          // Commit related to downstream issues
@@ -495,15 +499,17 @@ public class CommitProcessor {
                      commit.setState(Commit.State.PARTIAL).setReason("DOWNSTREAM_ISSUES_NOT_UPDATED");
                   }
                } else {
-                  if (requireReleaseIssues && !isAnyPreviousDownstreamIssueDone(candidateReleaseVersion, allDownstreamIssues)) {
-                     // The commits related to downstream issues fixed in another release requires
-                     // a downstream release issue if they are cherry-picked to a branch after the first release
-                     logger.warn("INCOMPLETE because no downstream issues with the required target release");
-
-                     if (cloneDownstreamIssues(commit, Commit.Action.STEP, release, selectedDownstreamIssues, confirmedTasks)) {
-                        commit.setState(Commit.State.DONE);
+                  if (requireReleaseIssues) {
+                     if (isAnyNextDownstreamIssueCreated(candidateReleaseVersion, allDownstreamIssues, false)) {
+                        commit.setState(Commit.State.SKIPPED).setReason("DOWNSTREAM_ISSUES_WITH_NEXT_TARGET_RELEASE_EXIST");
                      } else {
-                        commit.setState(Commit.State.PARTIAL).setReason("NO_DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE");
+                        logger.warn("INCOMPLETE because no downstream issues with the required target release");
+
+                        if (cloneDownstreamIssues(commit, Commit.Action.STEP, release, selectedDownstreamIssues, confirmedTasks)) {
+                           commit.setState(Commit.State.DONE);
+                        } else {
+                           commit.setState(Commit.State.PARTIAL).setReason("NO_DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE");
+                        }
                      }
                   }
                }
@@ -538,9 +544,9 @@ public class CommitProcessor {
                   // At least one downstream issue match sufficient criteria to cherry-pick the commit
 
                   if (requireReleaseIssues) {
-                     // The commits related to downstream issues fixed in another release requires
-                     // a downstream release issue if they are cherry-picked to a branch after the first release
-                     if (cloneDownstreamIssues(commit, Commit.Action.STEP, release, selectedDownstreamIssues, confirmedTasks)) {
+                     if (isAnyNextDownstreamIssueCreated(candidateReleaseVersion, allDownstreamIssues, false)) {
+                        commit.setState(Commit.State.SKIPPED).setReason("DOWNSTREAM_ISSUES_WITH_NEXT_TARGET_RELEASE_EXIST");
+                     } else if (cloneDownstreamIssues(commit, Commit.Action.STEP, release, selectedDownstreamIssues, confirmedTasks)) {
                         commit.setState(Commit.State.TODO);
                      } else {
                         List<Issue> selectedUpstreamIssues = upstreamIssues.stream().
@@ -593,9 +599,9 @@ public class CommitProcessor {
                   }
                } else {
                   if (requireReleaseIssues) {
-                     // The commits related to downstream issues fixed in another release requires
-                     // a downstream release issue if they are cherry-picked to a branch after the first release
-                     if (cloneDownstreamIssues(commit, Commit.Action.FORCE, release, selectedDownstreamIssues, confirmedTasks)) {
+                     if (isAnyNextDownstreamIssueCreated(candidateReleaseVersion, allDownstreamIssues, false)) {
+                        commit.setState(Commit.State.SKIPPED).setReason("DOWNSTREAM_ISSUES_WITH_NEXT_TARGET_RELEASE_EXIST");
+                     } else if (cloneDownstreamIssues(commit, Commit.Action.FORCE, release, selectedDownstreamIssues, confirmedTasks)) {
                         commit.setState(Commit.State.TODO);
                      } else {
                         commit.setState(Commit.State.SKIPPED).setReason("DOWNSTREAM_ISSUE_NOT_SUFFICIENT");
@@ -705,7 +711,7 @@ public class CommitProcessor {
       return currentRelease.equals(release) || FUTURE_GA_RELEASE.equals(release);
    }
 
-   private boolean isAnyPreviousDownstreamIssueDone(ReleaseVersion candidateReleaseVersion, List<Issue> downstreamIssues) {
+   private boolean isAnyPreviousDownstreamIssueDone(ReleaseVersion candidateReleaseVersion, List<Issue> downstreamIssues, boolean allReleaseStreams) {
       for (Issue downstreamIssue : downstreamIssues) {
          ReleaseVersion targetReleaseVersion;
 
@@ -716,7 +722,27 @@ public class CommitProcessor {
          }
 
          if (downstreamIssueManager.getIssueResolutionDone().equals(downstreamIssue.getResolution()) &&
-            targetReleaseVersion != null && targetReleaseVersion.compareTo(candidateReleaseVersion) <= 0) {
+            targetReleaseVersion != null && targetReleaseVersion.compareWithoutCandidateTo(candidateReleaseVersion) < 0 &&
+            (allReleaseStreams || targetReleaseVersion.compareReleaseStreamTo(candidateReleaseVersion) == 0)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private boolean isAnyNextDownstreamIssueCreated(ReleaseVersion candidateReleaseVersion, List<Issue> downstreamIssues, boolean allReleaseStreams) {
+      for (Issue downstreamIssue : downstreamIssues) {
+         ReleaseVersion targetReleaseVersion;
+
+         try {
+            targetReleaseVersion = ReleaseVersion.fromString(downstreamIssue.getTargetRelease());
+         } catch (Exception e) {
+            targetReleaseVersion = null;
+         }
+
+         if (targetReleaseVersion != null && targetReleaseVersion.compareWithoutCandidateTo(candidateReleaseVersion) > 0 &&
+            (allReleaseStreams || targetReleaseVersion.compareReleaseStreamTo(candidateReleaseVersion) == 0)) {
             return true;
          }
       }
@@ -1028,6 +1054,13 @@ public class CommitProcessor {
       }
 
       String summary = summaryPrefix + " " + cloningIssue.getSummary();
+
+      Issue existingIssue = downstreamIssueManager.getIssues().stream().filter(
+         issue -> summary.equals(issue.getSummary())).findFirst().orElse(null);
+
+      if (existingIssue != null) {
+         throw new IllegalStateException("Downstream issue with same summary already exist : " + existingIssue);
+      }
 
       Issue clonedIssue = downstreamIssueManager.createIssue(
          summary, cloningIssue.getDescription(), cloningIssue.getType(),
