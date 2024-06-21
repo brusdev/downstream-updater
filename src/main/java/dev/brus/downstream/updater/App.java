@@ -242,7 +242,7 @@ public class App {
       if (excludedDownstreamIssueKeys == null) {
          excludedDownstreamIssueKeys = projectStream.
             getExcludedDownstreamIssues().stream().filter(issue -> issue.getEnd() == null ||
-            candidateReleaseVersion.compareTo(ReleaseVersion.fromString(issue.getEnd())) <= 0).
+            candidateReleaseVersion.compareTo(ReleaseVersion.fromString(issue.getEnd())) < 0).
             map(ProjectStreamIssue::getKey).collect(Collectors.joining(","));
       }
 
@@ -252,7 +252,7 @@ public class App {
       if (excludedUpstreamIssueKeys == null) {
          excludedUpstreamIssueKeys = projectStream.
             getExcludedUpstreamIssues().stream().filter(issue -> issue.getEnd() == null ||
-            candidateReleaseVersion.compareTo(ReleaseVersion.fromString(issue.getEnd())) <= 0).
+            candidateReleaseVersion.compareTo(ReleaseVersion.fromString(issue.getEnd())) < 0).
             map(ProjectStreamIssue::getKey).collect(Collectors.joining(","));
       }
 

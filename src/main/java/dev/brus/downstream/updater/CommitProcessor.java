@@ -266,9 +266,11 @@ public class CommitProcessor {
       UserResolver userResolver) {
 
       this.candidateReleaseVersion = candidateReleaseVersion;
+      String nextReleaseQualifier =  candidateReleaseVersion.getQualifier() != null ?
+         candidateReleaseVersion.getQualifier().replaceAll("[0-9]+", "1") : null;
       this.nextReleaseVersion = new ReleaseVersion(candidateReleaseVersion.getMajor(),
          candidateReleaseVersion.getMinor(), candidateReleaseVersion.getPatch() + 1,
-         candidateReleaseVersion.getQualifier(), "CR1");
+         nextReleaseQualifier, "CR1");
       this.targetReleaseFormat = targetReleaseFormat;
       this.projectConfig = projectConfig;
       this.projectStreamName = projectStreamName;

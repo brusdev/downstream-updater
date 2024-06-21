@@ -68,6 +68,7 @@ public class CommitProcessorTest {
    public TemporaryFolder testFolder = new TemporaryFolder();
 
    private ReleaseVersion releaseVersion;
+   private ReleaseVersion nextPatchReleaseVersion;
    private ReleaseVersion nextReleaseVersion;
    private Project project;
    private ProjectConfig projectConfig;
@@ -86,6 +87,8 @@ public class CommitProcessorTest {
    @Before
    public void initMocks() throws Exception {
       releaseVersion = ReleaseVersion.fromString("1.1.0.CR1");
+      nextPatchReleaseVersion = new ReleaseVersion(releaseVersion.getMajor(),
+         releaseVersion.getMinor(), releaseVersion.getPatch() + 1, releaseVersion.getQualifier(), "CR1");
       nextReleaseVersion = new ReleaseVersion(releaseVersion.getMajor(),
          releaseVersion.getMinor() + 1, 0, releaseVersion.getQualifier(), "CR1");
 
@@ -863,35 +866,63 @@ public class CommitProcessorTest {
       Assert.assertEquals(Commit.State.NEW, newCommit.getState());
       Assert.assertEquals(4, newCommit.getTasks().size());
 
+      CommitTask cloneTask0 = newCommit.getTasks().get(0);
+      Assert.assertEquals(Commit.Action.STEP, cloneTask0.getAction());
+      Assert.assertEquals(CommitTask.Type.CLONE_UPSTREAM_ISSUE, cloneTask0.getType());
+      Assert.assertEquals(CommitTask.State.NEW, cloneTask0.getState());
+
+      CommitTask cherryPickTask0 = newCommit.getTasks().get(1);
+      Assert.assertEquals(Commit.Action.FORCE, cherryPickTask0.getAction());
+      Assert.assertEquals(CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT, cherryPickTask0.getType());
+      Assert.assertEquals(CommitTask.State.NEW, cherryPickTask0.getState());
+
+      CommitTask holdTask0 = newCommit.getTasks().get(2);
+      Assert.assertEquals(Commit.Action.HOLD, holdTask0.getAction());
+      Assert.assertEquals(CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE, holdTask0.getType());
+      Assert.assertEquals(CommitTask.State.NEW, holdTask0.getState());
+      Assert.assertEquals(nextPatchReleaseVersion.toString(), holdTask0.getUserArgs().get("end"));
+
+      CommitTask excludeTask0 = newCommit.getTasks().get(3);
+      Assert.assertEquals(Commit.Action.SKIP, excludeTask0.getAction());
+      Assert.assertEquals(CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE, excludeTask0.getType());
+      Assert.assertEquals(CommitTask.State.NEW, excludeTask0.getState());
+
       Map<String, Commit> confirmedCommits = new HashMap<>();
       Commit confirmedCommit = new Commit().
          setUpstreamCommit(upstreamCommit.getName()).
-         setTasks(Collections.singletonList(
-         new CommitTask().
-            setAction(Commit.Action.HOLD).
-            setType(CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE).
-            setArgs(Map.of("issueKey", UPSTREAM_ISSUE_KEY_0)).
-            setUserArgs(Map.of("end", nextReleaseVersion.toString()))));
+         setTasks(Collections.singletonList(holdTask0));
       confirmedCommits.put(upstreamCommit.getName(), confirmedCommit);
 
-      commitProcessor.setConfirmedCommits(confirmedCommits);
+      CommitProcessor nextCommitProcessor = new CommitProcessor(
+         nextPatchReleaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
 
-      Commit commit = commitProcessor.process(upstreamCommit);
+      nextCommitProcessor.setConfirmedCommits(confirmedCommits);
+
+      Commit commit = nextCommitProcessor.process(upstreamCommit);
 
       Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
       Assert.assertEquals(3, commit.getTasks().size());
 
-      CommitTask cloneTask = commit.getTasks().get(0);
-      Assert.assertEquals(CommitTask.Type.CLONE_UPSTREAM_ISSUE, cloneTask.getType());
-      Assert.assertEquals(CommitTask.State.NEW, cloneTask.getState());
+      CommitTask cloneTask1 = commit.getTasks().get(0);
+      Assert.assertEquals(Commit.Action.STEP, cloneTask1.getAction());
+      Assert.assertEquals(CommitTask.Type.CLONE_UPSTREAM_ISSUE, cloneTask1.getType());
+      Assert.assertEquals(CommitTask.State.NEW, cloneTask1.getState());
 
-      CommitTask cherryPickTask = commit.getTasks().get(1);
-      Assert.assertEquals(CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT, cherryPickTask.getType());
-      Assert.assertEquals(CommitTask.State.NEW, cherryPickTask.getState());
+      CommitTask cherryPickTask1 = commit.getTasks().get(1);
+      Assert.assertEquals(Commit.Action.FORCE, cherryPickTask1.getAction());
+      Assert.assertEquals(CommitTask.Type.CHERRY_PICK_UPSTREAM_COMMIT, cherryPickTask1.getType());
+      Assert.assertEquals(CommitTask.State.NEW, cherryPickTask1.getState());
 
-      CommitTask excludeTask = commit.getTasks().get(2);
-      Assert.assertEquals(CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE, excludeTask.getType());
-      Assert.assertEquals(CommitTask.State.DONE, excludeTask.getState());
+      CommitTask holdTask1 = commit.getTasks().get(2);
+      Assert.assertEquals(Commit.Action.HOLD, holdTask1.getAction());
+      Assert.assertEquals(CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE, holdTask1.getType());
+      Assert.assertEquals(CommitTask.State.DONE, holdTask1.getState());
    }
 
    @Test

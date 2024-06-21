@@ -56,4 +56,10 @@ public class ReleaseVersionTest {
       Assert.assertEquals(1, ReleaseVersion.fromString("7.10.0.CR1").compareReleaseStreamTo(ReleaseVersion.fromString("7.9.0.CR1")));
       Assert.assertEquals(-1, ReleaseVersion.fromString("7.10.0.CR1").compareReleaseStreamTo(ReleaseVersion.fromString("7.11.0.CR1")));
    }
+
+   @Test
+   public void testCompareTo() {
+      Assert.assertTrue(ReleaseVersion.fromString("7.12.1.OPR.1.CR1") .compareTo(ReleaseVersion.fromString("7.12.1.OPR.1.CR1")) == 0);
+      Assert.assertFalse(ReleaseVersion.fromString("7.12.1.OPR.1.CR1") .compareTo(ReleaseVersion.fromString("7.12.1.OPR.1.CR1")) < 0);
+   }
 }
