@@ -16,7 +16,7 @@ import dev.brus.downstream.updater.issue.IssueSecurityImpact;
 import dev.brus.downstream.updater.project.Project;
 import dev.brus.downstream.updater.project.ProjectConfig;
 import dev.brus.downstream.updater.project.ProjectStream;
-import dev.brus.downstream.updater.project.ProjectStreamIssue;
+import dev.brus.downstream.updater.project.ExcludedIssue;
 import dev.brus.downstream.updater.user.User;
 import dev.brus.downstream.updater.user.UserResolver;
 import dev.brus.downstream.updater.util.CommandLine;
@@ -241,9 +241,9 @@ public class App {
       String excludedDownstreamIssueKeys = line.getOptionValue(EXCLUDED_DOWNSTREAM_ISSUES_OPTION);
       if (excludedDownstreamIssueKeys == null) {
          excludedDownstreamIssueKeys = projectStream.
-            getExcludedDownstreamIssues().stream().filter(issue -> issue.getEnd() == null ||
-            candidateReleaseVersion.compareTo(ReleaseVersion.fromString(issue.getEnd())) < 0).
-            map(ProjectStreamIssue::getKey).collect(Collectors.joining(","));
+            getExcludedDownstreamIssues().stream().filter(issue -> issue.getUntil() == null ||
+            candidateReleaseVersion.compareTo(ReleaseVersion.fromString(issue.getUntil())) < 0).
+            map(ExcludedIssue::getKey).collect(Collectors.joining(","));
       }
 
       String confirmedUpstreamIssueKeys = line.getOptionValue(CONFIRMED_UPSTREAM_ISSUES_OPTION);
@@ -251,9 +251,9 @@ public class App {
       String excludedUpstreamIssueKeys = line.getOptionValue(EXCLUDED_UPSTREAM_ISSUES_OPTION);
       if (excludedUpstreamIssueKeys == null) {
          excludedUpstreamIssueKeys = projectStream.
-            getExcludedUpstreamIssues().stream().filter(issue -> issue.getEnd() == null ||
-            candidateReleaseVersion.compareTo(ReleaseVersion.fromString(issue.getEnd())) < 0).
-            map(ProjectStreamIssue::getKey).collect(Collectors.joining(","));
+            getExcludedUpstreamIssues().stream().filter(issue -> issue.getUntil() == null ||
+            candidateReleaseVersion.compareTo(ReleaseVersion.fromString(issue.getUntil())) < 0).
+            map(ExcludedIssue::getKey).collect(Collectors.joining(","));
       }
 
       boolean checkIncompleteCommits = Boolean.parseBoolean(line.getOptionValue(CHECK_INCOMPLETE_COMMITS_OPTION, "true"));

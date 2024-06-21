@@ -880,7 +880,7 @@ public class CommitProcessorTest {
       Assert.assertEquals(Commit.Action.HOLD, holdTask0.getAction());
       Assert.assertEquals(CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE, holdTask0.getType());
       Assert.assertEquals(CommitTask.State.NEW, holdTask0.getState());
-      Assert.assertEquals(nextPatchReleaseVersion.toString(), holdTask0.getUserArgs().get("end"));
+      Assert.assertEquals(nextPatchReleaseVersion.toString(), holdTask0.getUserArgs().get("until"));
 
       CommitTask excludeTask0 = newCommit.getTasks().get(3);
       Assert.assertEquals(Commit.Action.SKIP, excludeTask0.getAction());

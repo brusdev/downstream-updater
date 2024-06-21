@@ -81,11 +81,11 @@ public class ProjectConfig {
       project = Project.load(new File(gitRepository.getDirectory(), path));
    }
 
-   public void addExcludedUpstreamIssue(String issueKey, String end, String streamName, int retries) throws Exception {
+   public void addExcludedUpstreamIssue(String issueKey, String until, String streamName, int retries) throws Exception {
       while (true) {
          try {
             retries--;
-            addExcludedUpstreamIssue(issueKey, end, streamName);
+            addExcludedUpstreamIssue(issueKey, until, streamName);
             break;
          } catch (Exception e) {
             logger.debug("Failed to exclude upstream issue " + issueKey + ": " + e);
@@ -98,16 +98,16 @@ public class ProjectConfig {
       }
    }
 
-   public void addExcludedUpstreamIssue(String issueKey, String end, String streamName) throws Exception {
+   public void addExcludedUpstreamIssue(String issueKey, String until, String streamName) throws Exception {
       load();
 
       ProjectStream projectStream = project.getStream(streamName);
-      ProjectStreamIssue issue = new ProjectStreamIssue();
+      ExcludedIssue issue = new ExcludedIssue();
       issue.setKey(issueKey);
-      issue.setEnd(end);
+      issue.setUntil(until);
 
       String issueJson = "{\"key\":\"" + issueKey + "\"" +
-         (end != null ? ",\"end\":\"" + end + "\"}" : "}");
+         (until != null ? ",\"until\":\"" + until + "\"}" : "}");
 
       CommandExecutor.execute("yq -i '(.streams[] | select(.name == \"" + streamName
          + "\" ) | .excludedUpstreamIssues) += [" + issueJson + "] ' " + path,
@@ -115,7 +115,7 @@ public class ProjectConfig {
 
       gitRepository.add(path);
       gitRepository.commit("Exclude " + issueKey + " from " + project.getName() + " " +
-         (end != null ? "until " + end + " " : "") + streamName);
+         (until != null ? "until " + until + " " : "") + streamName);
       gitRepository.push("origin", branch);
 
       projectStream.getExcludedUpstreamIssues().add(issue);

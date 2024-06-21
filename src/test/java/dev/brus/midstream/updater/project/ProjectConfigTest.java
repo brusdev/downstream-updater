@@ -67,7 +67,7 @@ public class ProjectConfigTest {
    }
 
    @Test
-   public void testExcludedUpstreamIssueWithEnd() throws Exception {
+   public void testExcludedUpstreamIssueUntil() throws Exception {
       File repoDir = testFolder.newFolder("project-configs");
       ProjectConfig projectConfig = loadProjectConfig(repoDir);
 
@@ -101,26 +101,26 @@ public class ProjectConfigTest {
       return projectConfig;
    }
 
-   private void testExcludedUpstreamIssue(ProjectConfig projectConfig, String projectStreamName, String excludedUpstreamIssue, String exclusionEnd) throws Exception {
+   private void testExcludedUpstreamIssue(ProjectConfig projectConfig, String projectStreamName, String excludedUpstreamIssue, String exclusionUntil) throws Exception {
       File repoDir = new File(URI.create(projectConfig.getRepository()));
 
       Assert.assertTrue(projectConfig.getProject().getStream(projectStreamName).getExcludedUpstreamIssues().
-         stream().anyMatch(issue -> Objects.equals(issue.getKey(), excludedUpstreamIssue) && Objects.equals(issue.getEnd(), exclusionEnd)));
+         stream().anyMatch(issue -> Objects.equals(issue.getKey(), excludedUpstreamIssue) && Objects.equals(issue.getUntil(), exclusionUntil)));
 
       String gitLog = CommandExecutor.execute("git log", repoDir);
       Assert.assertTrue(gitLog.contains(excludedUpstreamIssue));
-      if (exclusionEnd != null) {
-         Assert.assertTrue(gitLog.contains(exclusionEnd));
+      if (exclusionUntil != null) {
+         Assert.assertTrue(gitLog.contains(exclusionUntil));
       }
 
       Project originProject = Project.load(new File(repoDir, TEST_PROJECT_CONFIG));
       Assert.assertTrue(originProject.getStream(projectStreamName).getExcludedUpstreamIssues().
-         stream().anyMatch(issue -> Objects.equals(issue.getKey(), excludedUpstreamIssue) && Objects.equals(issue.getEnd(), exclusionEnd)));
+         stream().anyMatch(issue -> Objects.equals(issue.getKey(), excludedUpstreamIssue) && Objects.equals(issue.getUntil(), exclusionUntil)));
 
       Assert.assertTrue(CommandExecutor.execute("git log", projectConfig.getGitRepository().getDirectory()).contains(excludedUpstreamIssue));
       Project targetProject = Project.load(new File(projectConfig.getGitRepository().getDirectory(), TEST_PROJECT_CONFIG));
       Assert.assertTrue(targetProject.getStream(projectStreamName).getExcludedUpstreamIssues().
-         stream().anyMatch(issue -> Objects.equals(issue.getKey(), excludedUpstreamIssue) && Objects.equals(issue.getEnd(), exclusionEnd)));
+         stream().anyMatch(issue -> Objects.equals(issue.getKey(), excludedUpstreamIssue) && Objects.equals(issue.getUntil(), exclusionUntil)));
    }
 
 }

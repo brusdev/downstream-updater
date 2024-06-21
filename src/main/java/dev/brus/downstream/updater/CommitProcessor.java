@@ -561,7 +561,7 @@ public class CommitProcessor {
                         for (Issue upstreamIssue : selectedUpstreamIssues) {
                            if (!processCommitTask(commit, release, CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE,
                               Commit.Action.HOLD, Map.of("issueKey",upstreamIssue.getKey()),
-                              Map.of("end", nextReleaseVersion.toString()), confirmedTasks)) {
+                              Map.of("until", nextReleaseVersion.toString()), confirmedTasks)) {
                               allSelectedUpstreamIssuesHolded = false;
                            }
                         }
@@ -657,7 +657,7 @@ public class CommitProcessor {
                      for (Issue upstreamIssue : selectedUpstreamIssues) {
                         if (!processCommitTask(commit, release, CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE,
                            Commit.Action.HOLD, Map.of("issueKey",upstreamIssue.getKey()),
-                           Map.of("end", nextReleaseVersion.toString()), confirmedTasks)) {
+                           Map.of("until", nextReleaseVersion.toString()), confirmedTasks)) {
                            allSelectedUpstreamIssuesHolded = false;
                         }
                      }
@@ -1028,10 +1028,10 @@ public class CommitProcessor {
          commitTask.setResult(downstreamIssue.getKey());
       } else if (commitTask.getType() == CommitTask.Type.EXCLUDE_UPSTREAM_ISSUE) {
          String issueKey = commitTask.getArgs().get("issueKey");
-         String end = commitTask.getUserArgs().get("end");
+         String until = commitTask.getUserArgs().get("until");
          if (!projectConfig.getProject().getStream(projectStreamName).
             getExcludedUpstreamIssues().stream().anyMatch(issue -> issue.getKey().equals(issueKey))) {
-            projectConfig.addExcludedUpstreamIssue(issueKey, end, projectStreamName, 10);
+            projectConfig.addExcludedUpstreamIssue(issueKey, until, projectStreamName, 10);
          } else {
             logger.info("Upstream issue " + issueKey + " already excluded from " +
                projectConfig.getProject().getName() + "/" + projectStreamName);
