@@ -1118,10 +1118,12 @@ public class CommitProcessor {
 
    private List<String> getCommitTests(GitCommit upstreamCommit) throws Exception {
       List<String> tests = new ArrayList<>();
-      for (String ChangedFile : gitRepository.getChangedFiles(upstreamCommit)) {
-         if (ChangedFile.contains(TEST_PATH) && ChangedFile.endsWith("Test.java")) {
-            tests.add(ChangedFile.substring(ChangedFile.indexOf(TEST_PATH) + TEST_PATH.length(),
-                                            ChangedFile.length() - 5).replace('/', '.'));
+      for (String changedFile : gitRepository.getChangedFiles(upstreamCommit)) {
+         if (changedFile.contains(TEST_PATH) && changedFile.endsWith("Test.java")) {
+            tests.add(changedFile.substring(changedFile.indexOf(TEST_PATH) + TEST_PATH.length(),
+                                            changedFile.length() - 5).replace('/', '.'));
+         } else if (changedFile.endsWith("_test.go")) {
+            tests.add(changedFile);
          }
       }
 
