@@ -165,18 +165,22 @@ public class JiraIssueManager implements IssueManager {
          tasks.add(() -> loadIssues(query, start, maxResults));
       }
 
-      long beginTimestamp = System.nanoTime();
-      ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-      List<Future<Integer>> taskFutures = executorService.invokeAll(tasks);
-      long endTimestamp = System.nanoTime();
-
       int count = 0;
-      for (Future<Integer> taskFuture : taskFutures) {
-         count += taskFuture.get();
-      }
+      long beginTimestamp = System.nanoTime();
 
-      executorService.shutdown();
-      logger.info("Loaded " + count + "/" + total + " issues in " + (endTimestamp - beginTimestamp) / 1000000 + " milliseconds");
+      ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+      try {
+          List<Future<Integer>> taskFutures = executorService.invokeAll(tasks);
+          long endTimestamp = System.nanoTime();
+
+          for (Future<Integer> taskFuture : taskFutures) {
+              count += taskFuture.get();
+          }
+
+          logger.info("Loaded " + count + "/" + total + " issues in " + (endTimestamp - beginTimestamp) / 1000000 + " milliseconds");
+      } finally {
+          executorService.shutdownNow();
+      }
 
       int diff = total - count;
 
