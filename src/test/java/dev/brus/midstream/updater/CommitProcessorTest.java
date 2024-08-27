@@ -15,6 +15,7 @@ import dev.brus.downstream.updater.Commit;
 import dev.brus.downstream.updater.CommitProcessor;
 import dev.brus.downstream.updater.CommitTask;
 import dev.brus.downstream.updater.git.JGitRepository;
+import dev.brus.downstream.updater.issue.DownstreamIssueStateMachine;
 import dev.brus.downstream.updater.issue.IssueStateMachine;
 import dev.brus.downstream.updater.project.Project;
 import dev.brus.downstream.updater.project.ProjectConfig;
@@ -453,7 +454,7 @@ public class CommitProcessorTest {
       Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
       Mockito.when(downstreamIssueManager.parseIssueKeys(Mockito.anyString())).thenReturn(Arrays.asList(DOWNSTREAM_ISSUE_KEY_0));
 
-      IssueStateMachine downstreamIssueStateMachine = Mockito.mock(IssueStateMachine.class);
+      DownstreamIssueStateMachine downstreamIssueStateMachine = Mockito.mock(DownstreamIssueStateMachine.class);
       Mockito.when(downstreamIssueStateMachine.getStateIndex(Mockito.any())).thenReturn(0);
       Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
 
@@ -530,10 +531,10 @@ public class CommitProcessorTest {
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
       Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
       Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
-      Mockito.when(downstreamIssueManager.getIssueStateDevComplete()).thenReturn(ISSUE_STATE_DEV_COMPLETE);
       Mockito.when(downstreamIssueManager.parseIssueKeys(Mockito.anyString())).thenReturn(Arrays.asList(DOWNSTREAM_ISSUE_KEY_0));
 
-      IssueStateMachine downstreamIssueStateMachine = Mockito.mock(IssueStateMachine.class);
+      DownstreamIssueStateMachine downstreamIssueStateMachine = Mockito.mock(DownstreamIssueStateMachine.class);
+      Mockito.when(downstreamIssueStateMachine.getIssueStateDevComplete()).thenReturn(ISSUE_STATE_DEV_COMPLETE);
       Mockito.when(downstreamIssueStateMachine.getStateIndex(Mockito.any())).thenReturn(0);
       Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
 
@@ -589,11 +590,11 @@ public class CommitProcessorTest {
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
       Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
       Mockito.when(downstreamIssueManager.getIssueResolutionDone()).thenReturn(ISSUE_RESOLUTION_DONE);
-      Mockito.when(downstreamIssueManager.getIssueStateDevComplete()).thenReturn(ISSUE_STATE_DEV_COMPLETE);
       Mockito.when(downstreamIssueManager.parseIssueKeys(Mockito.anyString())).thenReturn(Arrays.asList(DOWNSTREAM_ISSUE_KEY_0));
 
-      IssueStateMachine downstreamIssueStateMachine = Mockito.mock(IssueStateMachine.class);
+      DownstreamIssueStateMachine downstreamIssueStateMachine = Mockito.mock(DownstreamIssueStateMachine.class);
       Mockito.when(downstreamIssueStateMachine.getStateIndex(Mockito.any())).thenReturn(0);
+      Mockito.when(downstreamIssueStateMachine.getIssueStateDevComplete()).thenReturn(ISSUE_STATE_DEV_COMPLETE);
       Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
 
       Commit commit = commitProcessor.process(upstreamCommit);
@@ -731,7 +732,7 @@ public class CommitProcessorTest {
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
       Mockito.when(upstreamIssueManager.parseIssueKeys(commitShortMessage)).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
 
-      IssueStateMachine downstreamIssueStateMachine = Mockito.mock(IssueStateMachine.class);
+      DownstreamIssueStateMachine downstreamIssueStateMachine = Mockito.mock(DownstreamIssueStateMachine.class);
       Mockito.when(downstreamIssueStateMachine.getStateIndex(Mockito.any())).thenReturn(0);
       Mockito.when(downstreamIssueManager.getIssue(DOWNSTREAM_ISSUE_KEY_0)).thenReturn(downstreamIssue);
       Mockito.when(downstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
@@ -797,7 +798,10 @@ public class CommitProcessorTest {
       Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0);
 
       Mockito.when(downstreamIssueManager.createIssue(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(downstreamIssue);
-      Mockito.when(downstreamIssueManager.getIssueStateToDo()).thenReturn(ISSUE_STATE_TODO);
+
+      DownstreamIssueStateMachine downstreamIssueStateMachine = Mockito.mock(DownstreamIssueStateMachine.class);
+      Mockito.when(downstreamIssueStateMachine.getIssueStateToDo()).thenReturn(ISSUE_STATE_TODO);
+      Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
 
       Mockito.doAnswer(invocationContext -> downstreamIssue.setState(invocationContext.getArgument(1))).
          when(downstreamIssueManager).transitionIssue(Mockito.any(), Mockito.any());
@@ -848,7 +852,10 @@ public class CommitProcessorTest {
       Issue downstreamIssue = new Issue().setKey(DOWNSTREAM_ISSUE_KEY_0);
 
       Mockito.when(downstreamIssueManager.createIssue(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(downstreamIssue);
-      Mockito.when(downstreamIssueManager.getIssueStateToDo()).thenReturn(ISSUE_STATE_TODO);
+
+      DownstreamIssueStateMachine downstreamIssueStateMachine = Mockito.mock(DownstreamIssueStateMachine.class);
+      Mockito.when(downstreamIssueStateMachine.getIssueStateToDo()).thenReturn(ISSUE_STATE_TODO);
+      Mockito.when(downstreamIssueManager.getIssueStateMachine()).thenReturn(downstreamIssueStateMachine);
 
       Mockito.doAnswer(invocationContext -> downstreamIssue.setState(invocationContext.getArgument(1))).
          when(downstreamIssueManager).transitionIssue(Mockito.any(), Mockito.any());

@@ -854,11 +854,12 @@ public class CommitProcessor {
          }
 
          if (downstreamIssueManager.getIssueStateMachine().getStateIndex(downstreamIssue.getState()) <
-            downstreamIssueManager.getIssueStateMachine().getStateIndex(downstreamIssueManager.getIssueStateDevComplete())) {
+            downstreamIssueManager.getIssueStateMachine().getStateIndex(
+               downstreamIssueManager.getIssueStateMachine().getIssueStateDevComplete())) {
             if (checkIncompleteCommits) {
                executed &= processCommitTask(commit, release, CommitTask.Type.TRANSITION_DOWNSTREAM_ISSUE,
                   Commit.Action.STEP, Map.of("issueKey", downstreamIssue.getKey(), "state",
-                     downstreamIssueManager.getIssueStateDevComplete()), Collections.emptyMap(), confirmedTasks);
+                     downstreamIssueManager.getIssueStateMachine().getIssueStateDevComplete()), Collections.emptyMap(), confirmedTasks);
             }
          }
          //Check if the downstream issue has the right state
@@ -1072,7 +1073,7 @@ public class CommitProcessor {
 
       downstreamIssueManager.linkIssue(clonedIssue.getKey(), issueKey, "Cloners");
 
-      downstreamIssueManager.transitionIssue(clonedIssue.getKey(), downstreamIssueManager.getIssueStateToDo());
+      downstreamIssueManager.transitionIssue(clonedIssue.getKey(), downstreamIssueManager.getIssueStateMachine().getIssueStateToDo());
 
       for (String upstreamIssueKey : clonedIssue.getIssues()) {
          Issue upstreamIssue = upstreamIssueManager.getIssue(upstreamIssueKey);
@@ -1093,7 +1094,7 @@ public class CommitProcessor {
 
       downstreamIssueManager.addIssueUpstreamIssues(downstreamIssue.getKey(), upstreamIssue.getKey());
 
-      downstreamIssueManager.transitionIssue(downstreamIssue.getKey(), downstreamIssueManager.getIssueStateToDo());
+      downstreamIssueManager.transitionIssue(downstreamIssue.getKey(), downstreamIssueManager.getIssueStateMachine().getIssueStateToDo());
 
       upstreamIssue.getIssues().add(downstreamIssue.getKey());
 

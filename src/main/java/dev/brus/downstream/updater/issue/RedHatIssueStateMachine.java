@@ -1,6 +1,9 @@
 package dev.brus.downstream.updater.issue;
 
-public class RedHatIssueStateMachine implements IssueStateMachine {
+public class RedHatIssueStateMachine implements DownstreamIssueStateMachine {
+
+   private static final String ISSUE_STATE_TODO = "To Do";
+   private static final String ISSUE_STATE_DEV_COMPLETE = "Dev Complete";
 
    @Override
    public int getStateIndex(String state) {
@@ -39,5 +42,15 @@ public class RedHatIssueStateMachine implements IssueStateMachine {
    @Override
    public String getNextState(String fromState, String toState) {
       return toState;
+   }
+
+   @Override
+   public String getIssueStateToDo() {
+      return ISSUE_STATE_TODO;
+   }
+
+   @Override
+   public String getIssueStateDevComplete() {
+      return ISSUE_STATE_DEV_COMPLETE;
    }
 }

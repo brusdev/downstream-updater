@@ -50,8 +50,6 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
 
    private static final String ISSUE_RESOLUTION_DONE = "Done";
    private static final String ISSUE_RESOLUTION_DUPLICATE = "Duplicate";
-   private static final String ISSUE_STATE_TODO = "To Do";
-   private static final String ISSUE_STATE_DEV_COMPLETE = "Dev Complete";
 
    private static final String ISSUE_LABEL_NO_BACKPORT_NEEDED = "NO-BACKPORT-NEEDED";
    private static final String ISSUE_LABEL_NO_TESTING_NEEDED = "no-testing-needed";
@@ -63,15 +61,15 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
 
    private Gson gson = new GsonBuilder().setDateFormat(dateFormat).setPrettyPrinting().create();
 
-   private IssueStateMachine issueStateMachine;
+   private DownstreamIssueStateMachine issueStateMachine;
 
    private IssueManager upstreamIssueManager;
 
-   public IssueStateMachine getIssueStateMachine() {
+   public DownstreamIssueStateMachine getIssueStateMachine() {
       return issueStateMachine;
    }
 
-   public RedHatJiraIssueManager(String serverURL, String authString, String projectKey, IssueStateMachine issueStateMachine, IssueManager upstreamIssueManager) {
+   public RedHatJiraIssueManager(String serverURL, String authString, String projectKey, DownstreamIssueStateMachine issueStateMachine, IssueManager upstreamIssueManager) {
       super(serverURL, authString, projectKey);
 
       this.issueStateMachine = issueStateMachine;
@@ -86,16 +84,6 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    @Override
    public String getIssueResolutionDone() {
       return ISSUE_RESOLUTION_DONE;
-   }
-
-   @Override
-   public String getIssueStateToDo() {
-      return ISSUE_STATE_TODO;
-   }
-
-   @Override
-   public String getIssueStateDevComplete() {
-      return ISSUE_STATE_DEV_COMPLETE;
    }
 
    @Override

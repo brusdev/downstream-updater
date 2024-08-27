@@ -21,11 +21,7 @@ import java.util.List;
 
 public interface DownstreamIssueManager extends IssueManager {
 
-   IssueStateMachine getIssueStateMachine();
-
-   String getIssueStateToDo();
-
-   String getIssueStateDevComplete();
+   DownstreamIssueStateMachine getIssueStateMachine();
 
    String getIssueLabelNoBackportNeeded();
 
