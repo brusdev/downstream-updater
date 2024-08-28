@@ -552,9 +552,9 @@ public class CommitProcessor {
                         commit.setState(Commit.State.TODO);
                      } else {
                         List<Issue> selectedUpstreamIssues = upstreamIssues.stream().
-                           filter(upstreamIssue -> selectedDownstreamIssues.stream().
-                           anyMatch(downstreamIssue -> downstreamIssue.getIssues().stream().
-                           anyMatch(downstreamIssueKey -> downstreamIssueKey.equals(upstreamIssue.getKey())))).
+                           filter(upstreamIssue -> !isUpstreamIssueExcluded(upstreamIssue) &&
+                           selectedDownstreamIssues.stream().anyMatch(downstreamIssue -> downstreamIssue.getIssues().
+                           stream().anyMatch(downstreamIssueKey -> downstreamIssueKey.equals(upstreamIssue.getKey())))).
                            collect(Collectors.toList());
 
                         boolean allSelectedUpstreamIssuesHolded = true;

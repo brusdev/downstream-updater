@@ -17,6 +17,7 @@ import dev.brus.downstream.updater.CommitTask;
 import dev.brus.downstream.updater.git.JGitRepository;
 import dev.brus.downstream.updater.issue.DownstreamIssueStateMachine;
 import dev.brus.downstream.updater.issue.IssueStateMachine;
+import dev.brus.downstream.updater.project.ExcludedIssue;
 import dev.brus.downstream.updater.project.Project;
 import dev.brus.downstream.updater.project.ProjectConfig;
 import dev.brus.downstream.updater.project.ProjectStream;
@@ -69,6 +70,7 @@ public class CommitProcessorTest {
    public TemporaryFolder testFolder = new TemporaryFolder();
 
    private ReleaseVersion releaseVersion;
+   private ReleaseVersion previousReleaseVersion;
    private ReleaseVersion nextPatchReleaseVersion;
    private ReleaseVersion nextReleaseVersion;
    private Project project;
@@ -88,6 +90,7 @@ public class CommitProcessorTest {
    @Before
    public void initMocks() throws Exception {
       releaseVersion = ReleaseVersion.fromString("1.1.0.CR1");
+      previousReleaseVersion = ReleaseVersion.fromString("1.0.0.CR1");
       nextPatchReleaseVersion = new ReleaseVersion(releaseVersion.getMajor(),
          releaseVersion.getMinor(), releaseVersion.getPatch() + 1, releaseVersion.getQualifier(), "CR1");
       nextReleaseVersion = new ReleaseVersion(releaseVersion.getMajor(),
@@ -363,8 +366,34 @@ public class CommitProcessorTest {
          userResolver);
 
       Commit commit = commitProcessor.process(upstreamCommit);
-
       Assert.assertEquals(Commit.State.TODO, commit.getState());
+
+      CommitProcessor previousCommitProcessor = new CommitProcessor(
+         previousReleaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig, PREVIOUS_PROJECT_STREAM_NAME,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         userResolver);
+
+      Commit previousCommit = previousCommitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.NEW, previousCommit.getState());
+
+      previousCommitProcessor.setExcludedUpstreamIssues(Collections.singletonMap(UPSTREAM_ISSUE_KEY_0, upstreamIssue0));
+
+      Commit previousCommitAfterExcludingUpstreamIssue0 = previousCommitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.NEW, previousCommitAfterExcludingUpstreamIssue0.getState());
+
+      previousCommitProcessor.setExcludedUpstreamIssues(Collections.singletonMap(UPSTREAM_ISSUE_KEY_1, upstreamIssue1));
+
+      Commit previousCommitAfterExcludingUpstreamIssue1 = previousCommitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.SKIPPED, previousCommitAfterExcludingUpstreamIssue1.getState());
+
+      previousCommitProcessor.setExcludedUpstreamIssues(Map.of(UPSTREAM_ISSUE_KEY_0, upstreamIssue0, UPSTREAM_ISSUE_KEY_1, upstreamIssue1));
+
+      Commit previousCommitAfterExcludingUpstreamIssue0And1 = previousCommitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.SKIPPED, previousCommitAfterExcludingUpstreamIssue0And1.getState());
    }
 
    @Test
