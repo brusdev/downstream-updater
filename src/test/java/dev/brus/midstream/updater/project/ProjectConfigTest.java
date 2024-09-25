@@ -2,10 +2,13 @@ package dev.brus.midstream.updater.project;
 
 import java.io.File;
 import java.net.URI;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import dev.brus.downstream.updater.issue.IssueCustomerPriority;
 import dev.brus.downstream.updater.issue.IssueSecurityImpact;
+import dev.brus.downstream.updater.project.ExcludedIssue;
 import dev.brus.downstream.updater.project.Project;
 import dev.brus.downstream.updater.project.ProjectConfig;
 import dev.brus.downstream.updater.project.ProjectStream;
@@ -51,14 +54,14 @@ public class ProjectConfigTest {
       Assert.assertNotNull(projectConfig.getProject());
       Assert.assertEquals("AMQ Broker", projectConfig.getProject().getName());
 
-      projectConfig.addExcludedUpstreamIssue("UP-1234", null, "7.10");
+      projectConfig.putExcludedUpstreamIssue("UP-1234", null, "7.10");
       // Reset to see remote pushes
       CommandExecutor.execute("git reset --hard", repoDir);
       testExcludedUpstreamIssue(projectConfig, "7.10", "UP-1234", null);
 
       CommandExecutor.execute("git commit --allow-empty --message 'Other commit'", repoDir);
 
-      projectConfig.addExcludedUpstreamIssue("UP-1234", null, "7.11");
+      projectConfig.putExcludedUpstreamIssue("UP-1234", null, "7.11");
       // Reset to see remote pushes
       CommandExecutor.execute("git reset --hard", repoDir);
       testExcludedUpstreamIssue(projectConfig, "7.11", "UP-1234", null);
@@ -74,10 +77,15 @@ public class ProjectConfigTest {
       Assert.assertNotNull(projectConfig.getProject());
       Assert.assertEquals("AMQ Broker", projectConfig.getProject().getName());
 
-      projectConfig.addExcludedUpstreamIssue("UP-1234", "7.10.1.CR1", "7.10");
+      projectConfig.putExcludedUpstreamIssue("UP-1234", "7.10.1.CR1", "7.10");
       // Reset to see remote pushes
       CommandExecutor.execute("git reset --hard", repoDir);
       testExcludedUpstreamIssue(projectConfig, "7.10", "UP-1234", "7.10.1.CR1");
+
+      projectConfig.putExcludedUpstreamIssue("UP-1234", null, "7.10");
+      // Reset to see remote pushes
+      CommandExecutor.execute("git reset --hard", repoDir);
+      testExcludedUpstreamIssue(projectConfig, "7.10", "UP-1234", null);
    }
 
    private ProjectConfig loadProjectConfig(File repoDir) throws Exception {
@@ -104,8 +112,11 @@ public class ProjectConfigTest {
    private void testExcludedUpstreamIssue(ProjectConfig projectConfig, String projectStreamName, String excludedUpstreamIssue, String exclusionUntil) throws Exception {
       File repoDir = new File(URI.create(projectConfig.getRepository()));
 
-      Assert.assertTrue(projectConfig.getProject().getStream(projectStreamName).getExcludedUpstreamIssues().
-         stream().anyMatch(issue -> Objects.equals(issue.getKey(), excludedUpstreamIssue) && Objects.equals(issue.getUntil(), exclusionUntil)));
+      List<ExcludedIssue> matchingExcludedIssues = projectConfig.getProject().getStream(projectStreamName).getExcludedUpstreamIssues().
+         stream().filter(issue -> Objects.equals(issue.getKey(), excludedUpstreamIssue)).collect(Collectors.toList());
+
+      Assert.assertEquals(1, matchingExcludedIssues.size());
+      Assert.assertEquals(exclusionUntil, matchingExcludedIssues.get(0).getUntil());
 
       String gitLog = CommandExecutor.execute("git log", repoDir);
       Assert.assertTrue(gitLog.contains(excludedUpstreamIssue));

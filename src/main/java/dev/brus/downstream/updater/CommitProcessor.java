@@ -976,7 +976,7 @@ public class CommitProcessor {
 
       commit.getTasks().add(commitTask);
 
-      CommitTask confirmedTask = getCommitTask(type, args, confirmedTasks);
+      CommitTask confirmedTask = getCommitTask(action, type, args, confirmedTasks);
       boolean force = confirmedTask != null && Boolean.parseBoolean(confirmedTask.
          getUserArgs().getOrDefault(USER_ARG_FORCE, Boolean.FALSE.toString()));
 
@@ -1031,11 +1031,12 @@ public class CommitProcessor {
          String issueKey = commitTask.getArgs().get("issueKey");
          String until = commitTask.getUserArgs().get("until");
          if (!projectConfig.getProject().getStream(projectStreamName).
-            getExcludedUpstreamIssues().stream().anyMatch(issue -> issue.getKey().equals(issueKey))) {
-            projectConfig.addExcludedUpstreamIssue(issueKey, until, projectStreamName, 10);
+            getExcludedUpstreamIssues().stream().anyMatch(
+               issue -> Objects.equals(issueKey, issue.getKey()) && Objects.equals(until, issue.getUntil()))) {
+            projectConfig.putExcludedUpstreamIssueWithRetries(issueKey, until, projectStreamName, 10);
          } else {
             logger.info("Upstream issue " + issueKey + " already excluded from " +
-               projectConfig.getProject().getName() + "/" + projectStreamName);
+               projectConfig.getProject().getName() + "/" + projectStreamName + " until " + until);
          }
       } else {
          throw new IllegalStateException("Commit task type not supported: " + commitTask.getType());
@@ -1104,10 +1105,11 @@ public class CommitProcessor {
    }
 
 
-   private CommitTask getCommitTask(CommitTask.Type type, Map<String, String> args, List<CommitTask> tasks) {
+   private CommitTask getCommitTask(Commit.Action action, CommitTask.Type type, Map<String, String> args, List<CommitTask> tasks) {
       if (tasks != null) {
          for (CommitTask task : tasks) {
-            if (Objects.equals(type, task.getType()) &&
+            if (Objects.equals(action, task.getAction()) &&
+               Objects.equals(type, task.getType()) &&
                Objects.equals(args, task.getArgs())) {
                return task;
             }

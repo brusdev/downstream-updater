@@ -2,6 +2,8 @@ package dev.brus.downstream.updater.project;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Objects;
+import java.util.Optional;
 
 import dev.brus.downstream.updater.git.GitRepository;
 import dev.brus.downstream.updater.git.JGitRepository;
@@ -81,11 +83,11 @@ public class ProjectConfig {
       project = Project.load(new File(gitRepository.getDirectory(), path));
    }
 
-   public void addExcludedUpstreamIssue(String issueKey, String until, String streamName, int retries) throws Exception {
+   public void putExcludedUpstreamIssueWithRetries(String issueKey, String until, String streamName, int retries) throws Exception {
       while (true) {
          try {
             retries--;
-            addExcludedUpstreamIssue(issueKey, until, streamName);
+            putExcludedUpstreamIssue(issueKey, until, streamName);
             break;
          } catch (Exception e) {
             logger.debug("Failed to exclude upstream issue " + issueKey + ": " + e);
@@ -98,27 +100,40 @@ public class ProjectConfig {
       }
    }
 
-   public void addExcludedUpstreamIssue(String issueKey, String until, String streamName) throws Exception {
+   public void putExcludedUpstreamIssue(String issueKey, String until, String streamName) throws Exception {
       load();
 
       ProjectStream projectStream = project.getStream(streamName);
-      ExcludedIssue issue = new ExcludedIssue();
-      issue.setKey(issueKey);
-      issue.setUntil(until);
+      ExcludedIssue excludedIssue = new ExcludedIssue();
+      excludedIssue.setKey(issueKey);
+      excludedIssue.setUntil(until);
 
       String issueJson = "{\"key\":\"" + issueKey + "\"" +
          (until != null ? ",\"until\":\"" + until + "\"}" : "}");
 
-      CommandExecutor.execute("yq -i '(.streams[] | select(.name == \"" + streamName
-         + "\" ) | .excludedUpstreamIssues) += [" + issueJson + "] ' " + path,
-         gitRepository.getDirectory(), null);
+      Optional<ExcludedIssue> existingExcludedIssue = projectStream.getExcludedUpstreamIssues().stream().
+         filter(issue -> Objects.equals(excludedIssue.getKey(), issue.getKey())).findFirst();
+
+      if (existingExcludedIssue.isPresent()) {
+         CommandExecutor.execute("yq -i '(.streams[] | select(.name == \"" + streamName
+               + "\" ).excludedUpstreamIssues[] | select(.key == \"" + issueKey + "\")) = " + issueJson + "' " + path,
+            gitRepository.getDirectory(), null);
+      } else {
+         CommandExecutor.execute("yq -i '(.streams[] | select(.name == \"" + streamName
+               + "\" ).excludedUpstreamIssues) += [" + issueJson + "]' " + path,
+            gitRepository.getDirectory(), null);
+      }
 
       gitRepository.add(path);
       gitRepository.commit("Exclude " + issueKey + " from " + project.getName() + " " +
          (until != null ? "until " + until + " " : "") + streamName);
       gitRepository.push("origin", branch);
 
-      projectStream.getExcludedUpstreamIssues().add(issue);
+      if (existingExcludedIssue.isPresent()) {
+         existingExcludedIssue.get().setUntil(excludedIssue.getUntil());
+      } else {
+         projectStream.getExcludedUpstreamIssues().add(excludedIssue);
+      }
    }
 
    private void loadRepository() throws Exception {
