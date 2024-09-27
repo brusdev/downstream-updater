@@ -215,7 +215,7 @@ public class JGitRepository implements GitRepository {
       for (PushResult pushResult : pushResults) {
          for (RemoteRefUpdate remoteRefUpdate : pushResult.getRemoteUpdates()) {
             if (remoteRefUpdate.getStatus() != RemoteRefUpdate.Status.OK) {
-               throw new IllegalStateException("Update failed: " + remoteRefUpdate.getStatus());
+               throw new IllegalStateException("Update failed with status: " + remoteRefUpdate.getStatus() + " and message: " + remoteRefUpdate.getMessage());
             }
          }
       }
