@@ -18,6 +18,7 @@
 package dev.brus.downstream.updater.issue;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -37,6 +38,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -64,18 +66,18 @@ public class JiraIssueManager implements IssueManager {
 
    private final static String queryDateFormatPattern = "yyyy-MM-dd HH:mm";
 
-   private String serverURL;
-   private String authString;
-   private String projectKey;
-   private String issueBaseUrl;
+   private final String serverURL;
+   private final String authString;
+   private final String projectKey;
+   private final String issueBaseUrl;
 
-   protected Map<String, Issue> issues;
+   protected final Map<String, Issue> issues;
 
    protected final SimpleDateFormat defaultDateFormat = new SimpleDateFormat(dateFormatPattern);
    protected final SimpleDateFormat defaultQueryDateFormat = new SimpleDateFormat(queryDateFormatPattern);
-   private Gson gson = new GsonBuilder().setDateFormat(dateFormatPattern).setPrettyPrinting().create();
+   private final Gson gson = new GsonBuilder().setDateFormat(dateFormatPattern).setPrettyPrinting().create();
 
-   private Pattern issueKeyPattern;
+   private final Pattern issueKeyPattern;
 
    public String getServerURL() {
       return serverURL;
@@ -130,7 +132,7 @@ public class JiraIssueManager implements IssueManager {
    }
 
    private void loadIssues(Date lastUpdated) throws Exception {
-      int total = 0;
+      int total;
       final int MAX_RESULTS = 250;
 
       String lastUpdatedQuery = "";
@@ -142,7 +144,7 @@ public class JiraIssueManager implements IssueManager {
       }
       String query = "&jql=" + URLEncoder.encode("project = '" + projectKey + "'" + lastUpdatedQuery, StandardCharsets.UTF_8);
 
-      HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search?maxResults=0" + query);
+      HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search?maxResults=0" + query, null);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
             JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
@@ -195,7 +197,7 @@ public class JiraIssueManager implements IssueManager {
    private int loadIssues(String query, int start, int maxResults) throws Exception {
       int result = 0;
 
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/search?fields=*all&maxResults=" + maxResults + "&startAt=" + start + query);
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/search?fields=*all&maxResults=" + maxResults + "&startAt=" + start + query, null);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
             JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
@@ -346,17 +348,31 @@ public class JiraIssueManager implements IssueManager {
       return labels;
    }
 
-   protected HttpURLConnection createConnection(String url) throws Exception {
+   protected HttpURLConnection createConnection(String url, Consumer<HttpURLConnection> connectionConsumer) throws Exception {
       URL upstreamJIRA = new URL(serverURL + url);
-      logger.info("Connecting to " + upstreamJIRA);
-      HttpURLConnection connection = (HttpURLConnection)upstreamJIRA.openConnection();
-      connection.setRequestProperty("Content-Type", "application/json");
-      connection.setRequestProperty("Accept", "application/json");
 
-      if (authString != null) {
-         connection.setRequestProperty("Authorization", authString);
+      for (int i = 0; i < 9; i++) {
+         logger.info("Connecting to " + upstreamJIRA);
+         HttpURLConnection connection = (HttpURLConnection)upstreamJIRA.openConnection();
+         connection.setRequestProperty("Content-Type", "application/json");
+         connection.setRequestProperty("Accept", "application/json");
+
+         if (authString != null) {
+            connection.setRequestProperty("Authorization", authString);
+         }
+
+         if (connectionConsumer != null) {
+            connectionConsumer.accept(connection);
+         }
+
+         if (connection.getResponseCode() == 429) {
+            logger.debug("Rate limit reached, sleeping before retrying");
+            Thread.sleep((long)(3000 * Math.random()));
+         } else {
+            return connection;
+         }
       }
 
-      return connection;
+      throw new IOException("Failed to create a connection to " + upstreamJIRA + ". Maximum retries reached.");
    }
 }

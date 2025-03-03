@@ -143,15 +143,20 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private String postIssue(JsonObject issueObject) throws Exception {
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/");
-      try {
-         connection.setDoOutput(true);
-         connection.setRequestMethod("POST");
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/", httpConnection -> {
+         try {
+            httpConnection.setDoOutput(true);
+            httpConnection.setRequestMethod("POST");
 
-         try (OutputStreamWriter outputStreamWriter= new OutputStreamWriter(connection.getOutputStream())) {
-            outputStreamWriter.write(issueObject.toString());
+            try (OutputStreamWriter outputStreamWriter = new OutputStreamWriter(httpConnection.getOutputStream())) {
+               outputStreamWriter.write(issueObject.toString());
+            }
+         } catch (IOException e) {
+            throw new RuntimeException(e);
          }
+      });
 
+      try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(getConnectionInputStream(connection))) {
             JsonObject responseObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
 
@@ -307,15 +312,19 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       outwardIssue.addProperty("key", cloningIssueKey);
       issueLinkObject.add("outwardIssue", outwardIssue);
 
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issueLink");
-      try {
-         connection.setDoOutput(true);
-         connection.setRequestMethod("POST");
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issueLink", httpConnection -> {
+         try {
+            httpConnection.setDoOutput(true);
+            httpConnection.setRequestMethod("POST");
 
-         try (OutputStreamWriter outputStreamWriter= new OutputStreamWriter(connection.getOutputStream())) {
-            outputStreamWriter.write(issueLinkObject.toString());
+            try (OutputStreamWriter outputStreamWriter= new OutputStreamWriter(httpConnection.getOutputStream())) {
+               outputStreamWriter.write(issueLinkObject.toString());
+            }
+         } catch (IOException e) {
+            throw new RuntimeException(e);
          }
-
+      });
+      try {
          try (InputStream inputStream = getConnectionInputStream(connection)) {
             logger.debug("linkIssueResponse: " + new String(inputStream.readAllBytes()));
          }
@@ -380,15 +389,19 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private void putIssue(String issueKey, JsonObject issueObject) throws Exception {
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey);
-      try {
-         connection.setDoOutput(true);
-         connection.setRequestMethod("PUT");
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey, httpConnection -> {
+         try {
+            httpConnection.setDoOutput(true);
+            httpConnection.setRequestMethod("PUT");
 
-         try (OutputStreamWriter outputStreamWriter= new OutputStreamWriter(connection.getOutputStream())) {
-            outputStreamWriter.write(issueObject.toString());
+            try (OutputStreamWriter outputStreamWriter= new OutputStreamWriter(httpConnection.getOutputStream())) {
+               outputStreamWriter.write(issueObject.toString());
+            }
+         } catch (IOException e) {
+            throw new RuntimeException(e);
          }
-
+      });
+      try {
          try (InputStream inputStream = getConnectionInputStream(connection)) {
             logger.debug("putIssueResponse: " + new String(inputStream.readAllBytes()));
          }
@@ -420,19 +433,24 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public void transitionIssue(String issueKey, int transitionId) throws Exception {
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey + "/transitions");
-      connection.setDoOutput(true);
-      connection.setRequestMethod("POST");
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey + "/transitions", httpConnection -> {
+         try {
+            httpConnection.setDoOutput(true);
+            httpConnection.setRequestMethod("POST");
 
-      try (OutputStreamWriter outputStreamWriter= new OutputStreamWriter(connection.getOutputStream())) {
-         outputStreamWriter.write("{\"transition\":{\"id\":\"" + transitionId + "\"}}");
-      }
+            try (OutputStreamWriter outputStreamWriter= new OutputStreamWriter(httpConnection.getOutputStream())) {
+               outputStreamWriter.write("{\"transition\":{\"id\":\"" + transitionId + "\"}}");
+            }
+         } catch (IOException e) {
+            throw new RuntimeException(e);
+         }
+      });
 
       connection.getInputStream().close();
    }
 
    private JsonObject loadIssue(String issueKey) throws Exception {
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey);
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey, null);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
             return JsonParser.parseReader(inputStreamReader).getAsJsonObject();
@@ -451,7 +469,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public IssueTransaction[] getIssueTransactions(String issueKey) throws Exception {
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey + "/transitions?expand=transitions.fields");
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey + "/transitions?expand=transitions.fields", null);
       try {
          List<IssueTransaction> issueTransactions = new ArrayList<>();
 
