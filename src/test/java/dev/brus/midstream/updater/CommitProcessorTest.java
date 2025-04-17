@@ -58,6 +58,7 @@ public class CommitProcessorTest {
    private final static String TARGET_RELEASE_FORMAT = "%d.%d.%d.GA";
 
    private final static String ISSUE_TYPE_BUG = "Bug";
+   private final static String ISSUE_TYPE_IMPROVEMENT = "Improvement";
    private static final String ISSUE_RESOLUTION_DONE = "Done";
    private static final String ISSUE_RESOLUTION_DONE_ERRATA = "Done-Errata";
    private static final String ISSUE_RESOLUTION_WONT_DO = "Won't Do";
@@ -714,6 +715,38 @@ public class CommitProcessorTest {
 
       Commit revertedCherryPickeCommit = commitProcessor.process(revertedUpstreamCommit);
       Assert.assertEquals(Commit.State.DONE, revertedCherryPickeCommit.getState());
+   }
+
+   @Test
+   public void testCommitSkippedWithInsufficientUpstreamIssues() throws Exception {
+      MockGitCommit upstreamCommit = new MockGitCommit()
+          .setName(UPSTREAM_ISSUE_KEY_0)
+          .setShortMessage(TEST_MESSAGE_UPSTREAM_ISSUE_KEY_0)
+          .setFullMessage(TEST_MESSAGE)
+          .setAuthorEmail(TEST_USER_EMAIL);
+
+      Issue upstreamIssue = new Issue().setKey(UPSTREAM_ISSUE_KEY_0).setType(ISSUE_TYPE_IMPROVEMENT);
+
+      currentProjectStream.setMode(ProjectStream.Mode.UPDATING);
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+          releaseVersion,
+          TARGET_RELEASE_FORMAT,
+          projectConfig, CURRENT_PROJECT_STREAM_NAME,
+          gitRepository,
+          upstreamIssueManager,
+          downstreamIssueManager,
+          userResolver);
+
+      Mockito.when(gitRepository.resolveCommit(upstreamCommit.getName())).thenReturn(upstreamCommit);
+
+      Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
+      Mockito.when(upstreamIssueManager.getIssueTypeBug()).thenReturn(ISSUE_TYPE_BUG);
+      Mockito.when(upstreamIssueManager.parseIssueKeys(Mockito.anyString())).thenReturn(Arrays.asList(UPSTREAM_ISSUE_KEY_0));
+
+      Commit newCommit = commitProcessor.process(upstreamCommit);
+      Assert.assertEquals(Commit.State.SKIPPED, newCommit.getState());
+      Assert.assertEquals(4, newCommit.getTasks().size());
    }
 
    @Test

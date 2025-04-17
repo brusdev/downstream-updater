@@ -635,8 +635,18 @@ public class CommitProcessor {
             // Commit not cherry-picked and no downstream issues
             List<Issue> selectedUpstreamIssues = upstreamIssues.stream().filter(issue ->
                confirmedUpstreamIssues != null && confirmedUpstreamIssues.containsKey(issue.getKey()) ||
-                  issue.getType().equals(upstreamIssueManager.getIssueTypeBug()) &&
-                     !isUpstreamIssueExcluded(issue)).collect(Collectors.toList());
+                  !isUpstreamIssueExcluded(issue)).sorted((i1, i2) -> {
+                     // Sort issues by type and key
+                     if (upstreamIssueManager.getIssueTypeBug().equals(i1.getType()) &&
+                         !upstreamIssueManager.getIssueTypeBug().equals(i2.getType())) {
+                        return -1;
+                     } else if (!upstreamIssueManager.getIssueTypeBug().equals(i1.getType()) &&
+                         upstreamIssueManager.getIssueTypeBug().equals(i2.getType())) {
+                        return 1;
+                     } else {
+                        return i1.getKey().compareTo(i2.getKey());
+                     }
+                  }).collect(Collectors.toList());
 
             if (selectedUpstreamIssues.size() > 0) {
                if (processCommitTask(commit, release, CommitTask.Type.CLONE_UPSTREAM_ISSUE,
@@ -677,8 +687,17 @@ public class CommitProcessor {
                         if (allSelectedUpstreamIssuesSkipped) {
                            commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
                         } else {
-                           logger.info("SKIPPED because the the upstream issue is sufficient but there are no downstream issues");
-                           commit.setState(Commit.State.NEW).setReason("UPSTREAM_ISSUE_SUFFICIENT_BUT_NO_DOWNSTREAM_ISSUES");
+                           boolean anySufficientUpstreamIssue = selectedUpstreamIssues.stream().anyMatch(
+                               issue -> confirmedUpstreamIssues != null && confirmedUpstreamIssues.containsKey(issue.getKey()) ||
+                                   issue.getType().equals(upstreamIssueManager.getIssueTypeBug()));
+
+                           if (anySufficientUpstreamIssue) {
+                              logger.info("SKIPPED because the the upstream issue is sufficient but there are no downstream issues");
+                              commit.setState(Commit.State.NEW).setReason("UPSTREAM_ISSUE_SUFFICIENT_BUT_NO_DOWNSTREAM_ISSUES");
+                           } else {
+                              logger.info("SKIPPED because the the upstream issue is not sufficient");
+                              commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_NOT_SUFFICIENT");
+                           }
                         }
                      }
                   }
@@ -689,8 +708,8 @@ public class CommitProcessor {
                   Map.of(USER_ARG_SKIP_TESTS, Boolean.FALSE.toString()), confirmedTasks)) {
                   commit.setState(Commit.State.DONE);
                } else {
-                  logger.info("SKIPPED because the the upstream issue is not sufficient");
-                  commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_NOT_SUFFICIENT");
+                  logger.info("SKIPPED because the the upstream issue is not excluded");
+                  commit.setState(Commit.State.SKIPPED).setReason("UPSTREAM_ISSUE_EXCLUDED");
                }
             }
          }
