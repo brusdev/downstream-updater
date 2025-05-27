@@ -265,10 +265,31 @@ public class CommitProcessorTest {
          downstreamIssueManager,
          userResolver);
 
-      Commit commit = commitProcessor.process(upstreamCommit);
+      Commit commitWithoutTargetRelease = commitProcessor.process(upstreamCommit);
 
-      Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
-      Assert.assertEquals("UPSTREAM_ISSUE_BACKPORT_BLOCKED", commit.getReason());
+      Assert.assertEquals(Commit.State.SKIPPED, commitWithoutTargetRelease.getState());
+      Assert.assertEquals("UPSTREAM_ISSUE_BACKPORT_BLOCKED", commitWithoutTargetRelease.getReason());
+
+      downstreamIssue.setTargetRelease("1.0.0.GA");
+
+      Commit commitWithPreviousTargetRelease = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.TODO, commitWithPreviousTargetRelease.getState());
+      Assert.assertEquals("DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE_NOT_REQUIRED", commitWithPreviousTargetRelease.getReason());
+
+      downstreamIssue.setTargetRelease("1.1.0.GA");
+
+      Commit commitWithCurrentTargetRelease = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.TODO, commitWithCurrentTargetRelease.getState());
+      Assert.assertEquals("DOWNSTREAM_ISSUES_WITH_REQUIRED_TARGET_RELEASE_SUFFICIENT", commitWithCurrentTargetRelease.getReason());
+
+      downstreamIssue.setTargetRelease("1.2.0.GA");
+
+      Commit commitWithNextTargetRelease = commitProcessor.process(upstreamCommit);
+
+      Assert.assertEquals(Commit.State.SKIPPED, commitWithNextTargetRelease.getState());
+      Assert.assertEquals("UPSTREAM_ISSUE_BACKPORT_BLOCKED", commitWithNextTargetRelease.getReason());
    }
 
    @Test
@@ -1097,7 +1118,6 @@ public class CommitProcessorTest {
          .setCustomer(true)
          .setCustomerPriority(IssueCustomerPriority.HIGH)
          .setResolution(ISSUE_RESOLUTION_WONT_DO);
-      downstreamIssue.getLabels().add(ISSUE_LABEL_NO_BACKPORT_NEEDED);
       downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
@@ -1141,7 +1161,6 @@ public class CommitProcessorTest {
          .setCustomerPriority(IssueCustomerPriority.HIGH)
          .setTargetRelease(PREVIOUS_PROJECT_STREAM_NAME + ".0.CR1")
          .setResolution(ISSUE_RESOLUTION_DONE_ERRATA);
-      downstreamIssue.getLabels().add(ISSUE_LABEL_NO_BACKPORT_NEEDED);
       downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);
@@ -1184,7 +1203,6 @@ public class CommitProcessorTest {
          .setCustomer(true)
          .setCustomerPriority(IssueCustomerPriority.HIGH)
          .setTargetRelease("1.1.1.CR1");
-      downstreamIssue.getLabels().add(ISSUE_LABEL_NO_BACKPORT_NEEDED);
       downstreamIssue.getIssues().add(UPSTREAM_ISSUE_KEY_0);
 
       Mockito.when(upstreamIssueManager.getIssue(UPSTREAM_ISSUE_KEY_0)).thenReturn(upstreamIssue);

@@ -814,8 +814,7 @@ public class CommitProcessor {
 
          if (downstreamIssue.getLabels().contains(downstreamIssueManager.getIssueLabelNoBackportNeeded()) &&
             ((targetReleaseVersion == null && downstreamIssue.getTargetRelease() == null) ||
-               (targetReleaseVersion != null && targetReleaseVersion.getMajor() == candidateReleaseVersion.getMajor() &&
-                  targetReleaseVersion.getMinor() == candidateReleaseVersion.getMinor()))) {
+               (targetReleaseVersion != null && targetReleaseVersion.compareWithoutCandidateTo(candidateReleaseVersion) > 0))) {
             return true;
          }
       }
