@@ -119,9 +119,11 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
          }
          //UPSTREAM_ISSUE_FIELD was removed from the create screen
          //fieldsObject.addProperty(UPSTREAM_ISSUE_FIELD, upstreamIssue);
-         JsonObject targetReleaseObject = new JsonObject();
-         targetReleaseObject.addProperty("name", targetRelease);
-         fieldsObject.add(TARGET_RELEASE_FIELD, targetReleaseObject);
+         if (targetRelease != null && !targetRelease.isEmpty()) {
+             JsonObject targetReleaseObject = new JsonObject();
+             targetReleaseObject.addProperty("name", targetRelease);
+             fieldsObject.add(TARGET_RELEASE_FIELD, targetReleaseObject);
+         }
          JsonObject assigneeObject = new JsonObject();
          assigneeObject.addProperty("name", assignee);
          fieldsObject.add("assignee", assigneeObject);
@@ -361,7 +363,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
          JsonObject updatingFieldsObject = new JsonObject();
          JsonObject targetReleaseObject = new JsonObject();
          targetReleaseObject.addProperty("name", targetRelease);
-         updatingFieldsObject.add("customfield_12311240", targetReleaseObject);
+         updatingFieldsObject.add(TARGET_RELEASE_FIELD, targetReleaseObject);
          updatingIssueObject.add("fields", updatingFieldsObject);
       }
 
