@@ -27,6 +27,7 @@ public class Project {
    private String checkCommand;
    private String checkTestCommand;
    private List<ProjectStream> streams;
+   private Boolean synchronizeIssues = false;
 
    public String getName() {
       return name;
@@ -130,6 +131,14 @@ public class Project {
 
    public void setStreams(List<ProjectStream> streams) {
       this.streams = streams;
+   }
+
+   public Boolean getSynchronizeIssues() {
+      return synchronizeIssues;
+   }
+
+   public void setSynchronizeIssues(Boolean synchronizeIssues) {
+      this.synchronizeIssues = synchronizeIssues;
    }
 
    public Project() {

@@ -214,3 +214,54 @@ graph TD;
     F --> V;
 ```
 
+## Issue Synchronization
+
+It is possible to synchronize issues from an upstream GitHub repository to a downstream Jira project. This feature is opt-in and can be enabled on a per-project basis.
+
+### Configuration
+
+To enable issue synchronization for a project, add the following flag to the project's configuration file (`.yaml`):
+
+```yaml
+synchronizeIssues: true
+```
+
+### Workflow
+
+When `synchronizeIssues` is enabled for a project, the following workflow is executed:
+
+1. **Load Configuration:** The application loads the project configuration, including the `synchronizeIssues` flag.
+2. **Fetch Issues:** It fetches all issues from the upstream GitHub repository and the downstream Jira project.
+3. **Synchronize Issues:** The application iterates through the upstream issues.
+   * For each upstream issue, it checks if a corresponding downstream issue already exists.
+   * If not, it proceeds to create a new downstream issue.
+4. **Create Jira Issue:** A new Jira issue is created with the summary and description from the upstream issue.
+5. **Link Issues:** The new Jira issue is linked to the original upstream issue.
+6. **Process Commits:** After the issue synchronization is complete, the application proceeds with the existing commit processing logic.
+
+### Diagrams
+
+#### High-Level Workflow
+
+```mermaid
+graph TD;
+    A[Start] --> B{Load Project Config};
+    B --> C{synchronizeIssues == true?};
+    C -->|Yes| D[Synchronize Issues];
+    C -->|No| E[Process Commits];
+    D --> E;
+    E --> F[End];
+```
+
+#### Issue Synchronization
+
+```mermaid
+graph TD;
+    A[Start Sync] --> B{For each upstream issue};
+    B --> C{Downstream issue exists?};
+    C -->|No| G[Create Jira Issue];
+    C -->|Yes| B;
+    G --> I[Link Downstream to Upstream];
+    I --> B;
+    B --> K[End Sync];
+```

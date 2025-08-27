@@ -367,7 +367,114 @@ public class RedHatJiraIssueManagerTest {
 
       RecordedRequest transitionsIssueRecordedRequest = mockWebServer.takeRequest();
       Assert.assertNotNull(transitionsIssueRecordedRequest.getBody());
+   }
 
-      mockWebServer.shutdown();
+   @Test
+   public void testIssueSynchronization() throws Exception {
+      MockWebServer mockWebServer = new MockWebServer();
+      mockWebServer.start();
+      try {
+         String upstreamServerBaseURL = "https://github.com/apache/activemq-artemis";
+         IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/issues",
+            null, "ARTEMIS"));
+
+         String upstreamIssueKey = "ARTEMIS-100";
+         String upstreamIssueUrl = upstreamServerBaseURL + "/issues/" + upstreamIssueKey;
+         Issue upstreamIssue = new Issue()
+            .setKey(upstreamIssueKey)
+            .setUrl(upstreamIssueUrl)
+            .setSummary("Test Summary")
+            .setDescription("Test Description")
+            .setType("Bug")
+            .setAssignee("testuser")
+            .setTargetRelease("2.17.0");
+         upstreamIssue.getLabels().add("test-label");
+
+         Mockito.when(upstreamIssueManager.getIssue(upstreamIssueKey)).thenReturn(upstreamIssue);
+
+         RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("/").toString().replaceAll("/$", ""),
+            null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
+
+         // 1. Mock the response for creating an issue
+         String downstreamIssueKey = "ENTMQBR-123";
+         JsonObject createResponse = new JsonObject();
+         createResponse.addProperty("key", downstreamIssueKey);
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(createResponse.toString()));
+
+         // 2. Mock the response for GETting the newly created issue
+         JsonObject getResponse = new JsonObject();
+         getResponse.addProperty("key", downstreamIssueKey);
+         JsonObject fieldsObject = new JsonObject();
+         fieldsObject.addProperty("summary", "Test Summary");
+         JsonObject userObject = new JsonObject();
+         userObject.addProperty("name", "testuser");
+         fieldsObject.add("creator", userObject);
+         fieldsObject.add("reporter", userObject);
+         JsonObject statusObject = new JsonObject();
+         statusObject.addProperty("name", "New");
+         fieldsObject.add("status", statusObject);
+         JsonObject issueTypeObject = new JsonObject();
+         issueTypeObject.addProperty("name", "Bug");
+         fieldsObject.add("issuetype", issueTypeObject);
+         fieldsObject.addProperty("created", "2000-01-01T00:00:00.000+0000");
+         fieldsObject.addProperty("updated", "2000-01-01T00:00:00.000+0000");
+         getResponse.add("fields", fieldsObject);
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(getResponse.toString()));
+
+         // 3. Mock the response for GETting the issue before updating upstream links
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(getResponse.toString()));
+
+         // 4. Mock the response for the PUT request to add upstream links
+         mockWebServer.enqueue(new MockResponse().setResponseCode(204));
+
+         // --- Execute the logic ---
+         Issue newDownstreamIssue = issueManager.createIssue(
+            upstreamIssue.getSummary(),
+            upstreamIssue.getDescription(),
+            upstreamIssue.getType(),
+            upstreamIssue.getAssignee(),
+            upstreamIssue.getTargetRelease(),
+            upstreamIssue.getLabels()
+         );
+
+         issueManager.addIssueUpstreamIssues(newDownstreamIssue.getKey(), upstreamIssue.getKey());
+
+         // --- Verify the requests ---
+
+         // Verify create issue request
+         RecordedRequest createRequest = mockWebServer.takeRequest();
+         Assert.assertEquals("/rest/api/2/issue/", createRequest.getPath());
+         Assert.assertEquals("POST", createRequest.getMethod());
+         String createBody = createRequest.getBody().readUtf8();
+         JsonObject createPayload = JsonParser.parseString(createBody).getAsJsonObject();
+         Assert.assertEquals("Test Summary", createPayload.getAsJsonObject("fields").get("summary").getAsString());
+         Assert.assertEquals("Test Description", createPayload.getAsJsonObject("fields").get("description").getAsString());
+
+         // Verify get issue request
+         RecordedRequest getRequest1 = mockWebServer.takeRequest();
+         Assert.assertEquals("/rest/api/2/issue/" + downstreamIssueKey, getRequest1.getPath());
+
+         // Verify get issue for update request
+         RecordedRequest getRequest2 = mockWebServer.takeRequest();
+         Assert.assertEquals("/rest/api/2/issue/" + downstreamIssueKey, getRequest2.getPath());
+
+         // Verify update issue request
+         RecordedRequest updateRequest = mockWebServer.takeRequest();
+         Assert.assertEquals("/rest/api/2/issue/" + downstreamIssueKey, updateRequest.getPath());
+         Assert.assertEquals("PUT", updateRequest.getMethod());
+         String updateBody = updateRequest.getBody().readUtf8();
+         JsonObject updatePayload = JsonParser.parseString(updateBody).getAsJsonObject();
+         String upstreamJiraField = updatePayload.getAsJsonObject("fields").get("customfield_12314640").getAsString();
+         Assert.assertEquals(upstreamIssueUrl, upstreamJiraField);
+      } finally {
+         mockWebServer.shutdown();
+         mockWebServer.close();
+      }
    }
 }
