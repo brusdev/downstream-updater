@@ -70,10 +70,27 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public RedHatJiraIssueManager(String serverURL, String authString, String projectKey, DownstreamIssueStateMachine issueStateMachine, IssueManager upstreamIssueManager) {
-      super(serverURL, authString, projectKey);
+      super(serverURL, authString, projectKey, true);  
 
       this.issueStateMachine = issueStateMachine;
       this.upstreamIssueManager = upstreamIssueManager;
+   }
+
+   @Override
+   protected JsonArray buildRequiredIssueFields() {
+      JsonArray fields = super.buildRequiredIssueFields();
+      
+      // Add Red Hat specific custom fields
+      fields.add(TARGET_RELEASE_FIELD);           // customfield_12311240 - Target Release
+      fields.add(UPSTREAM_JIRA_FIELD);            // customfield_12314640 - Upstream Jira
+      fields.add("customfield_12312340");         // GSS Priority
+      fields.add("customfield_12310120");         // Help Desk Ticket Reference
+      fields.add("customfield_12310021");         // Support Case Reference
+      fields.add("customfield_12313441");         // SFDC Cases Links
+      fields.add("customfield_12313440");         // SFDC Cases Counter
+      fields.add("customfield_12311640");         // Security Sensitive Issue
+      
+      return fields;
    }
 
    @Override
@@ -495,6 +512,17 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       } finally {
          connection.disconnect();
       }
+   }
+   
+   @Override
+   protected String parseUserId(JsonObject userObject) {
+      if (userObject == null || userObject.isJsonNull()) {
+         return null;
+      }
+      if (userObject.has("accountId") && !userObject.get("accountId").isJsonNull()) {
+         return userObject.getAsJsonPrimitive("accountId").getAsString();
+      }
+      return null;
    }
 
    @Override
