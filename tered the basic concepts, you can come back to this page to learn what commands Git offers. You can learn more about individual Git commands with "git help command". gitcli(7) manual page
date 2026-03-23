@@ -1,0 +1,54 @@
+[4mGIT[24m(1)                                                                                               Git Manual                                                                                              [4mGIT[24m(1)
+
+[1mNAME[0m
+       git - the stupid content tracker
+
+[1mSYNOPSIS[0m
+       [4mgit[24m [-v | --version] [-h | --help] [-C <path>] [-c <name>=<value>]
+           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]
+           [-p | --paginate | -P | --no-pager] [--no-replace-objects] [--no-lazy-fetch]
+           [--no-optional-locks] [--no-advice] [--bare] [--git-dir=<path>]
+           [--work-tree=<path>] [--namespace=<name>] [--config-env=<name>=<envvar>]
+           <command> [<args>]
+
+[1mDESCRIPTION[0m
+       Git is a fast, scalable, distributed revision control system with an unusually rich command set that provides both high-level operations and full access to internals.
+
+       See [1mgittutorial[22m(7) to get started, then see [1mgiteveryday[22m(7) for a useful minimum set of commands. The [34m[1mGit User’s Manual[0m[1m[22m[1] has a more in-depth introduction.
+
+       After you mastered the basic concepts, you can come back to this page to learn what commands Git offers. You can learn more about individual Git commands with "git help command". [1mgitcli[22m(7) manual page
+       gives you an overview of the command-line command syntax.
+
+       A formatted and hyperlinked copy of the latest Git documentation can be viewed at [34m[1mhttps://git.github.io/htmldocs/git.html [0m[1m[22mor [34m[1mhttps://git-scm.com/docs[0m[1m[22m.
+
+[1mOPTIONS[0m
+       -v, --version
+           Prints the Git suite version that the [4mgit[24m program came from.
+
+           This option is internally converted to [1mgit version [22m... and accepts the same options as the [1mgit-version[22m(1) command. If [1m--help [22mis also given, it takes precedence over [1m--version[22m.
+
+       -h, --help
+           Prints the synopsis and a list of the most commonly used commands. If the option [1m--all [22mor [1m-a [22mis given then all available commands are printed. If a Git command is named this option will bring up the
+           manual page for that command.
+
+           Other options are available to control how the manual page is displayed. See [1mgit-help[22m(1) for more information, because [1mgit --help [22m... is converted internally into [1mgit help [22m....
+
+       -C <path>
+           Run as if git was started in [4m<path>[24m instead of the current working directory. When multiple [1m-C [22moptions are given, each subsequent non-absolute [1m-C [4m[22m<path>[24m is interpreted relative to the preceding [1m-C[0m
+           [4m<path>[24m. If [4m<path>[24m is present but empty, e.g.  [1m-C [22m"", then the current working directory is left unchanged.
+
+           This option affects options that expect path name like [1m--git-dir [22mand [1m--work-tree [22min that their interpretations of the path names would be made relative to the working directory caused by the [1m-C[0m
+           option. For example the following invocations are equivalent:
+
+               git --git-dir=a.git --work-tree=b -C c status
+               git --git-dir=c/a.git --work-tree=c/b status
+
+       -c <name>=<value>
+           Pass a configuration parameter to the command. The value given will override values from configuration files. The <name> is expected in the same format as listed by [4mgit[24m [4mconfig[24m (subkeys separated by
+           dots).
+
+           Note that omitting the [1m= [22min [1mgit -c foo.bar [22m... is allowed and sets [1mfoo.bar [22mto the boolean true value (just like [[1mfoo[22m][1mbar [22mwould in a config file). Including the equals but with an empty value (like [1mgit[0m
+           [1m-c foo.bar= [22m...) sets [1mfoo.bar [22mto the empty string which [1mgit config --type=bool [22mwill convert to [1mfalse[22m.
+
+       --config-env=<name>=<envvar>
+           Like [1m-c [4m[22m<name>[24m[1m=[4m[22m<va
