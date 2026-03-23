@@ -14,6 +14,7 @@ import dev.brus.downstream.updater.project.ProjectConfig;
 import dev.brus.downstream.updater.project.ProjectStream;
 import dev.brus.downstream.updater.util.CommandExecutor;
 import org.apache.commons.io.FileUtils;
+import org.junit.Assume;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -48,6 +49,8 @@ public class ProjectConfigTest {
 
    @Test
    public void testExcludedUpstreamIssue() throws Exception {
+      Assume.assumeTrue(isYqAvailable());
+
       File repoDir = testFolder.newFolder("project-configs");
       ProjectConfig projectConfig = loadProjectConfig(repoDir);
 
@@ -71,6 +74,8 @@ public class ProjectConfigTest {
 
    @Test
    public void testExcludedUpstreamIssueUntil() throws Exception {
+      Assume.assumeTrue(isYqAvailable());
+
       File repoDir = testFolder.newFolder("project-configs");
       ProjectConfig projectConfig = loadProjectConfig(repoDir);
 
@@ -107,6 +112,15 @@ public class ProjectConfigTest {
       projectConfig.load();
 
       return projectConfig;
+   }
+
+   private boolean isYqAvailable() {
+      try {
+         CommandExecutor.execute("yq --version", null);
+         return true;
+      } catch (Exception e) {
+         return false;
+      }
    }
 
    private void testExcludedUpstreamIssue(ProjectConfig projectConfig, String projectStreamName, String excludedUpstreamIssue, String exclusionUntil) throws Exception {

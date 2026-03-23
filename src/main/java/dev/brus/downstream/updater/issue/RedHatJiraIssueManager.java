@@ -76,6 +76,13 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       this.upstreamIssueManager = upstreamIssueManager;
    }
 
+   public RedHatJiraIssueManager(String serverURL, String authString, String projectKey, String apiVersion, DownstreamIssueStateMachine issueStateMachine, IssueManager upstreamIssueManager) {
+      super(serverURL, authString, projectKey, apiVersion);
+
+      this.issueStateMachine = issueStateMachine;
+      this.upstreamIssueManager = upstreamIssueManager;
+   }
+
    @Override
    public String getIssueTypeBug() {
       return ISSUE_TYPE_BUG;
@@ -101,6 +108,16 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       return ISSUE_LABEL_UPSTREAM_TEST_COVERAGE;
    }
 
+   private JsonObject createAssigneeObject(String assignee) {
+      JsonObject assigneeObject = new JsonObject();
+      if (REST_API_PATH_V3.equals(getRestApiPath())) {
+         assigneeObject.addProperty("accountId", assignee);
+      } else {
+         assigneeObject.addProperty("name", assignee);
+      }
+      return assigneeObject;
+   }
+
    @Override
    public Issue createIssue(String summary, String description, String type, String assignee, String targetRelease, List<String> labels) throws Exception {
 
@@ -122,8 +139,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
          JsonObject targetReleaseObject = new JsonObject();
          targetReleaseObject.addProperty("name", targetRelease);
          fieldsObject.add(TARGET_RELEASE_FIELD, targetReleaseObject);
-         JsonObject assigneeObject = new JsonObject();
-         assigneeObject.addProperty("name", assignee);
+         JsonObject assigneeObject = createAssigneeObject(assignee);
          fieldsObject.add("assignee", assigneeObject);
          JsonArray labelsArray = new JsonArray();
          for (String label : labels) {
@@ -143,7 +159,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private String postIssue(JsonObject issueObject) throws Exception {
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/", httpConnection -> {
+      HttpURLConnection connection = createConnection(getRestApiPath() + "/issue/", httpConnection -> {
          try {
             httpConnection.setDoOutput(true);
             httpConnection.setRequestMethod("POST");
@@ -312,7 +328,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       outwardIssue.addProperty("key", cloningIssueKey);
       issueLinkObject.add("outwardIssue", outwardIssue);
 
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issueLink", httpConnection -> {
+      HttpURLConnection connection = createConnection(getRestApiPath() + "/issueLink", httpConnection -> {
          try {
             httpConnection.setDoOutput(true);
             httpConnection.setRequestMethod("POST");
@@ -389,7 +405,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private void putIssue(String issueKey, JsonObject issueObject) throws Exception {
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey, httpConnection -> {
+      HttpURLConnection connection = createConnection(getRestApiPath() + "/issue/" + issueKey, httpConnection -> {
          try {
             httpConnection.setDoOutput(true);
             httpConnection.setRequestMethod("PUT");
@@ -433,7 +449,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public void transitionIssue(String issueKey, int transitionId) throws Exception {
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey + "/transitions", httpConnection -> {
+      HttpURLConnection connection = createConnection(getRestApiPath() + "/issue/" + issueKey + "/transitions", httpConnection -> {
          try {
             httpConnection.setDoOutput(true);
             httpConnection.setRequestMethod("POST");
@@ -450,7 +466,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private JsonObject loadIssue(String issueKey) throws Exception {
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey, null);
+      HttpURLConnection connection = createConnection(getRestApiPath() + "/issue/" + issueKey, null);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
             return JsonParser.parseReader(inputStreamReader).getAsJsonObject();
@@ -469,7 +485,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public IssueTransaction[] getIssueTransactions(String issueKey) throws Exception {
-      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey + "/transitions?expand=transitions.fields", null);
+      HttpURLConnection connection = createConnection(getRestApiPath() + "/issue/" + issueKey + "/transitions?expand=transitions.fields", null);
       try {
          List<IssueTransaction> issueTransactions = new ArrayList<>();
 
