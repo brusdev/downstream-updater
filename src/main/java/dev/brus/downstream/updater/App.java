@@ -279,7 +279,6 @@ public class App {
          gitRepository.open(repoDir);
          gitRepository.fetch("origin");
          gitRepository.fetch("upstream");
-         gitRepository.resetHard();
       } else {
          gitRepository.clone(downstreamRepository, repoDir);
          gitRepository.remoteAdd("upstream", upstreamRepository);
