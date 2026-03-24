@@ -52,6 +52,9 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import dev.brus.downstream.updater.issue.Issue;
+import dev.brus.downstream.updater.issue.IssueManager;
+
 public class JiraIssueManager implements IssueManager {
    private final static Logger logger = LoggerFactory.getLogger(JiraIssueManager.class);
 
@@ -80,6 +83,24 @@ public class JiraIssueManager implements IssueManager {
    private final Gson gson = new GsonBuilder().setDateFormat(dateFormatPattern).setPrettyPrinting().create();
 
    private final Pattern issueKeyPattern;
+
+   private static class SearchPagePayload {
+      private final JsonArray issuesArray;
+      private final String nextPageToken;
+
+      private SearchPagePayload(JsonArray issuesArray, String nextPageToken) {
+         this.issuesArray = issuesArray;
+         this.nextPageToken = nextPageToken;
+      }
+
+      public JsonArray getIssuesArray() {
+         return issuesArray;
+      }
+
+      public String getNextPageToken() {
+         return nextPageToken;
+      }
+   }
 
    private static class SearchPageResult {
       private final int loadedCount;
@@ -226,7 +247,6 @@ public class JiraIssueManager implements IssueManager {
          try {
             try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
                JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
-
                total = jsonObject.getAsJsonPrimitive("total").getAsInt();
             }
          } finally {
@@ -283,6 +303,12 @@ public class JiraIssueManager implements IssueManager {
    }
 
    private SearchPageResult loadIssuesV3Page(String jql, int maxResults, String nextPageToken) throws Exception {
+      SearchPagePayload payload = searchIssuesV3Page(jql, maxResults, nextPageToken);
+      int loadedCount = loadIssuesV3SearchResults(payload.getIssuesArray());
+      return new SearchPageResult(loadedCount, payload.getNextPageToken());
+   }
+
+   private SearchPagePayload searchIssuesV3Page(String jql, int maxResults, String nextPageToken) throws Exception {
       JsonObject requestBody = new JsonObject();
       requestBody.addProperty("jql", jql);
       requestBody.addProperty("maxResults", maxResults);
@@ -291,7 +317,8 @@ public class JiraIssueManager implements IssueManager {
       fields.add("*all");
       requestBody.add("fields", fields);
 
-      if (nextPageToken != null && !nextPageToken.isEmpty()) {
+      // Handle blank/empty tokens: normalize to null to prevent infinite loops
+      if (nextPageToken != null && !nextPageToken.trim().isEmpty()) {
          requestBody.addProperty("nextPageToken", nextPageToken);
       }
 
@@ -312,28 +339,49 @@ public class JiraIssueManager implements IssueManager {
             JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
             JsonArray issuesArray = jsonObject.getAsJsonArray("issues");
 
-            int loaded = 0;
-            DateFormat dateFormat = new SimpleDateFormat(dateFormatPattern);
-            for (JsonElement issueElement : issuesArray) {
-               JsonObject issueObject = issueElement.getAsJsonObject();
-               Issue issue = parseIssue(issueObject, dateFormat);
-               issues.put(issue.getKey(), issue);
-               loaded++;
-            }
-
             String returnedNextPageToken = null;
             JsonElement nextPageTokenElement = jsonObject.get("nextPageToken");
             if (nextPageTokenElement != null && !nextPageTokenElement.isJsonNull()) {
-               returnedNextPageToken = nextPageTokenElement.getAsString();
+               String token = nextPageTokenElement.getAsString();
+               // Normalize empty tokens to null
+               if (token != null && !token.trim().isEmpty()) {
+                  returnedNextPageToken = token;
+               }
             }
 
-            return new SearchPageResult(loaded, returnedNextPageToken);
+            return new SearchPagePayload(issuesArray, returnedNextPageToken);
          }
       } finally {
          connection.disconnect();
       }
    }
 
+   private int loadIssuesV3SearchResults(JsonArray issuesArray) throws Exception {
+      if (issuesArray == null || issuesArray.size() == 0) {
+         return 0;
+      }
+
+      int threadCount = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors(), issuesArray.size()));
+      ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+      try {
+         List<Callable<Issue>> tasks = new ArrayList<>(issuesArray.size());
+      for (JsonElement issueElement : issuesArray) {
+         JsonObject issueObject = issueElement.getAsJsonObject();
+         tasks.add(() -> parseIssue(issueObject, new SimpleDateFormat(dateFormatPattern)));
+      }
+
+      int loaded = 0;
+         List<Future<Issue>> futures = executor.invokeAll(tasks);
+      for (Future<Issue> future : futures) {
+         Issue issue = future.get();
+         issues.put(issue.getKey(), issue);
+         loaded++;
+      }
+      return loaded;
+      } finally {
+         executor.shutdownNow();
+      }
+   }
 
    private int loadIssues(String query, int start, int maxResults) throws Exception {
       int result = 0;
