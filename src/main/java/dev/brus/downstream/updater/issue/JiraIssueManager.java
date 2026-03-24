@@ -138,16 +138,18 @@ public class JiraIssueManager implements IssueManager {
       if (REST_API_PATH_V2.equals(apiVersion) || REST_API_PATH_V3.equals(apiVersion)) {
          return apiVersion;
       } else {
-         throw new IllegalStateException("Unsupported API version: " + apiVersion);
+         return REST_API_PATH_V2;
       }
    }
 
    // Prevents URL from ending with duplicated /rest/api/{2,3}.
    private static String normalizeServerURL(String url) {
-      if (url.endsWith(REST_API_PATH_V2)) {
-         return url.substring(0, url.length() - REST_API_PATH_V2.length());
+      if (url.endsWith(REST_API_PATH_V2 + "/")) {
+         return url.substring(0, url.length() - REST_API_PATH_V2.length() + 1);
       } else if (url.endsWith(REST_API_PATH_V3)) {
          return url.substring(0, url.length() - REST_API_PATH_V3.length());
+      } else if (url.endsWith(REST_API_PATH_V3 + "/")) {
+         return url.substring(0, url.length() - REST_API_PATH_V3.length() + 1);
       } else {
          return url;
       }
