@@ -76,13 +76,6 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       this.upstreamIssueManager = upstreamIssueManager;
    }
 
-   public RedHatJiraIssueManager(String serverURL, String authString, String projectKey, String apiVersion, DownstreamIssueStateMachine issueStateMachine, IssueManager upstreamIssueManager) {
-      super(serverURL, authString, projectKey, apiVersion);
-
-      this.issueStateMachine = issueStateMachine;
-      this.upstreamIssueManager = upstreamIssueManager;
-   }
-
    @Override
    public String getIssueTypeBug() {
       return ISSUE_TYPE_BUG;
@@ -108,16 +101,6 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       return ISSUE_LABEL_UPSTREAM_TEST_COVERAGE;
    }
 
-   private JsonObject createAssigneeObject(String assignee) {
-      JsonObject assigneeObject = new JsonObject();
-      if (REST_API_PATH_V3.equals(getRestApiPath())) {
-         assigneeObject.addProperty("accountId", assignee);
-      } else {
-         assigneeObject.addProperty("name", assignee);
-      }
-      return assigneeObject;
-   }
-
    @Override
    public Issue createIssue(String summary, String description, String type, String assignee, String targetRelease, List<String> labels) throws Exception {
 
@@ -139,7 +122,8 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
          JsonObject targetReleaseObject = new JsonObject();
          targetReleaseObject.addProperty("name", targetRelease);
          fieldsObject.add(TARGET_RELEASE_FIELD, targetReleaseObject);
-         JsonObject assigneeObject = createAssigneeObject(assignee);
+         JsonObject assigneeObject = new JsonObject();
+         assigneeObject.addProperty("name", assignee);
          fieldsObject.add("assignee", assigneeObject);
          JsonArray labelsArray = new JsonArray();
          for (String label : labels) {

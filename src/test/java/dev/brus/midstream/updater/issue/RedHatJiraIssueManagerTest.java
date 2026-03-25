@@ -372,96 +372,22 @@ public class RedHatJiraIssueManagerTest {
    }
 
    @Test
-   public void testCreateIssueAccountIdForV3Assignee() throws Exception {
-      MockWebServer mockWebServer = new MockWebServer();
-      mockWebServer.start();
-
-      String upstreamServerBaseURL = "https://issues.apache.org/jira";
-      IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL, null, "ARTEMIS"));
-
-      RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(
-         mockWebServer.url("/").toString(),
-         null,
-         "ENTMQBR",
-         JiraIssueManager.REST_API_PATH_V3,
-         new RedHatIssueStateMachine(),
-         upstreamIssueManager);
-
-      String downstreamIssueKey = "ENTMQBR-100";
-
-      JsonObject createResponseDownstreamIssueObject = new JsonObject();
-      createResponseDownstreamIssueObject.addProperty("key", downstreamIssueKey);
-
-      JsonObject downstreamIssueObject = new JsonObject();
-      downstreamIssueObject.addProperty("key", downstreamIssueKey);
-      JsonObject fieldsObject = new JsonObject();
-
-      JsonObject userObject = new JsonObject();
-      userObject.addProperty("accountId", "test");
-      fieldsObject.add("creator", userObject);
-      fieldsObject.add("reporter", userObject);
-      fieldsObject.add("assignee", userObject);
-
-      JsonObject statusObject = new JsonObject();
-      statusObject.addProperty("name", "New");
-      fieldsObject.add("status", statusObject);
-
-      JsonObject issueTypeObject = new JsonObject();
-      issueTypeObject.addProperty("name", "Task");
-      fieldsObject.add("issuetype", issueTypeObject);
-
-      fieldsObject.addProperty("summary", "Productize AMQ Broker 7.10.3.OPR.1.CR1");
-      fieldsObject.addProperty("created", "2001-01-01T00:00:00.000+0000");
-      fieldsObject.addProperty("updated", "2000-01-01T00:00:00.000+0000");
-
-      downstreamIssueObject.add("fields", fieldsObject);
-
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(createResponseDownstreamIssueObject.toString()));
-
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(downstreamIssueObject.toString()));
-
-      issueManager.createIssue("Productize AMQ Broker 7.10.3.OPR.1.CR1", "", "Task", "test", "AMQ 7.10.3.OPR.1.GA", Collections.emptyList());
-
-      RecordedRequest createIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(createIssueRecordedRequest.getBody());
-      Assert.assertTrue(createIssueRecordedRequest.getPath().contains("/rest/api/3/issue/"));
-
-      try (InputStreamReader inputStreamReader = new InputStreamReader(createIssueRecordedRequest.getBody().inputStream())) {
-         JsonObject issueObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
-
-         JsonObject issuefields = issueObject.getAsJsonObject("fields");
-         JsonElement assigneeField = issuefields.get("assignee");
-         Assert.assertNotNull(assigneeField);
-         Assert.assertTrue(assigneeField.isJsonObject());
-
-         JsonObject assigneeFieldObject = assigneeField.getAsJsonObject();
-         Assert.assertEquals("test", assigneeFieldObject.get("accountId").getAsString());
-         Assert.assertNull(assigneeFieldObject.get("name"));
-      }
-
-      RecordedRequest loadIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(loadIssueRecordedRequest);
-
-      mockWebServer.shutdown();
-   }
-
-   @Test
    public void testLoadIssuesUsesV3SearchJqlWithContinuationToken() throws Exception {
       MockWebServer mockWebServer = new MockWebServer();
       mockWebServer.start();
 
       String upstreamServerBaseURL = "https://issues.apache.org/jira";
-      IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL, null, "ARTEMIS"));
+      IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
+         null, "ARTEMIS"));
 
-      RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("/").toString(), null, "ENTMQBR", JiraIssueManager.REST_API_PATH_V3, new RedHatIssueStateMachine(), upstreamIssueManager);
+      RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/3").toString(),
+         null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
 
       JsonObject countResponse = new JsonObject();
       countResponse.addProperty("count", 2);
-      mockWebServer.enqueue(new MockResponse().addHeader("Content-Type", "application/json; charset=utf-8").setBody(countResponse.toString()));
+      mockWebServer.enqueue(new MockResponse()
+         .addHeader("Content-Type", "application/json; charset=utf-8")
+         .setBody(countResponse.toString()));
 
       JsonObject page1 = new JsonObject();
       JsonArray issues1 = new JsonArray();
@@ -489,13 +415,16 @@ public class RedHatJiraIssueManagerTest {
          fields.addProperty("updated", "2000-01-01T00:00:00.000+0000");
          fields.add("components", new JsonArray());
          fields.add("labels", new JsonArray());
+         fields.add("description", new JsonObject());
 
          issue.add("fields", fields);
          issues1.add(issue);
       }
       page1.add("issues", issues1);
       page1.addProperty("nextPageToken", "TOKEN-1");
-      mockWebServer.enqueue(new MockResponse().addHeader("Content-Type", "application/json; charset=utf-8").setBody(page1.toString()));
+      mockWebServer.enqueue(new MockResponse()
+         .addHeader("Content-Type", "application/json; charset=utf-8")
+         .setBody(page1.toString()));
 
       JsonObject page2 = new JsonObject();
       JsonArray issues2 = new JsonArray();
@@ -528,22 +457,24 @@ public class RedHatJiraIssueManagerTest {
          issues2.add(issue);
       }
       page2.add("issues", issues2);
-      mockWebServer.enqueue(new MockResponse().addHeader("Content-Type", "application/json; charset=utf-8").setBody(page2.toString()));
+      mockWebServer.enqueue(new MockResponse()
+         .addHeader("Content-Type", "application/json; charset=utf-8")
+         .setBody(page2.toString()));
 
       issueManager.loadIssues();
 
       Assert.assertNotNull(issueManager.getIssue("ENTMQBR-100"));
       Assert.assertNotNull(issueManager.getIssue("ENTMQBR-101"));
 
-      RecordedRequest countReq = mockWebServer.takeRequest();
-      Assert.assertTrue(countReq.getPath().contains("/rest/api/3/search/approximate-count"));
+      RecordedRequest countRequest = mockWebServer.takeRequest();
+      Assert.assertTrue(countRequest.getPath().contains("/rest/api/3/search/approximate-count"));
 
-      RecordedRequest pageReq1 = mockWebServer.takeRequest();
-      Assert.assertTrue(pageReq1.getBody().readUtf8().contains("\"jql\""));
+      RecordedRequest pageRequest1 = mockWebServer.takeRequest();
+      Assert.assertTrue(pageRequest1.getPath().contains("/rest/api/3/search/jql"));
 
-      RecordedRequest pageReq2 = mockWebServer.takeRequest();
-      Assert.assertTrue(pageReq2.getPath().contains("/rest/api/3/search/jql"));
-      Assert.assertTrue(pageReq2.getBody().readUtf8().contains("\"nextPageToken\":\"TOKEN-1\""));
+      RecordedRequest pageRequest2 = mockWebServer.takeRequest();
+      Assert.assertTrue(pageRequest2.getPath().contains("/rest/api/3/search/jql"));
+      Assert.assertTrue(pageRequest2.getBody().readUtf8().contains("\"nextPageToken\":\"TOKEN-1\""));
 
       mockWebServer.shutdown();
    }

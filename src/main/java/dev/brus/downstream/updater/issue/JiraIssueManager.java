@@ -20,6 +20,7 @@ package dev.brus.downstream.updater.issue;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -52,15 +53,13 @@ import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import dev.brus.downstream.updater.issue.Issue;
-import dev.brus.downstream.updater.issue.IssueManager;
-
 public class JiraIssueManager implements IssueManager {
    private final static Logger logger = LoggerFactory.getLogger(JiraIssueManager.class);
 
    public final static String REST_API_PATH_V2 = "/rest/api/2";
    public final static String REST_API_PATH_V3 = "/rest/api/3";
    protected final String apiVersion;
+   
    public final static String BROWSE_API_PATH = "/browse";
 
    private final static String ISSUE_TYPE_BUG = "Bug";
@@ -142,23 +141,25 @@ public class JiraIssueManager implements IssueManager {
       }
    }
 
-   // Prevents URL from ending with duplicated /rest/api/{2,3}.
+   // Prevents URL from ending with duplicated /rest/api/{2, 3} or /rest/api/{2,3}/.
    private static String normalizeServerURL(String url) {
-      if (url.endsWith(REST_API_PATH_V2 + "/")) {
-         return url.substring(0, url.length() - REST_API_PATH_V2.length() + 1);
+      if (url.endsWith(REST_API_PATH_V2)) {
+         return url.substring(0, url.length() - REST_API_PATH_V2.length());
+      } else if (url.endsWith(REST_API_PATH_V2 + "/")) {
+         return url.substring(0, url.length() - (REST_API_PATH_V2.length() + 1));
       } else if (url.endsWith(REST_API_PATH_V3)) {
          return url.substring(0, url.length() - REST_API_PATH_V3.length());
       } else if (url.endsWith(REST_API_PATH_V3 + "/")) {
-         return url.substring(0, url.length() - REST_API_PATH_V3.length() + 1);
+         return url.substring(0, url.length() - (REST_API_PATH_V3.length() + 1));
       } else {
          return url;
       }
    }
 
    private static String resolveApiVersion(String url, String requested) {
-      if (url.endsWith(REST_API_PATH_V2)) {
+      if (url.endsWith(REST_API_PATH_V2) || url.endsWith(REST_API_PATH_V2 + "/")) {
          return REST_API_PATH_V2;
-      } else if (url.endsWith(REST_API_PATH_V3)) {
+      } else if (url.endsWith(REST_API_PATH_V3) || url.endsWith(REST_API_PATH_V3 + "/")) {
          return REST_API_PATH_V3;
       } else {
          return requested;
@@ -229,7 +230,9 @@ public class JiraIssueManager implements IssueManager {
                connection.setDoOutput(true);
                byte[] payload = requestBody.toString().getBytes(StandardCharsets.UTF_8);
                connection.setRequestProperty("Content-Length", String.valueOf(payload.length));
-               connection.getOutputStream().write(payload);
+               try (OutputStream outputStream = connection.getOutputStream()) {
+                  outputStream.write(payload);
+               }
             } catch (IOException e) {
                throw new RuntimeException(e);
             }
@@ -288,7 +291,7 @@ public class JiraIssueManager implements IssueManager {
                count += taskFuture.get();
             }
          } finally {
-            executorService.shutdownNow();
+            executorService.shutdown();
          }
       }
 
@@ -330,7 +333,9 @@ public class JiraIssueManager implements IssueManager {
             configuredConnection.setDoOutput(true);
             byte[] payload = requestBody.toString().getBytes(StandardCharsets.UTF_8);
             configuredConnection.setRequestProperty("Content-Length", String.valueOf(payload.length));
-            configuredConnection.getOutputStream().write(payload);
+            try (OutputStream outputStream = configuredConnection.getOutputStream()) {
+               outputStream.write(payload);
+            }
          } catch (IOException e) {
             throw new RuntimeException(e);
          }
@@ -367,21 +372,21 @@ public class JiraIssueManager implements IssueManager {
       ExecutorService executor = Executors.newFixedThreadPool(threadCount);
       try {
          List<Callable<Issue>> tasks = new ArrayList<>(issuesArray.size());
-      for (JsonElement issueElement : issuesArray) {
-         JsonObject issueObject = issueElement.getAsJsonObject();
-         tasks.add(() -> parseIssue(issueObject, new SimpleDateFormat(dateFormatPattern)));
-      }
+         for (JsonElement issueElement : issuesArray) {
+            JsonObject issueObject = issueElement.getAsJsonObject();
+            tasks.add(() -> parseIssue(issueObject, new SimpleDateFormat(dateFormatPattern)));
+         }
 
-      int loaded = 0;
+         int loaded = 0;
          List<Future<Issue>> futures = executor.invokeAll(tasks);
-      for (Future<Issue> future : futures) {
-         Issue issue = future.get();
-         issues.put(issue.getKey(), issue);
-         loaded++;
-      }
-      return loaded;
+         for (Future<Issue> future : futures) {
+            Issue issue = future.get();
+            issues.put(issue.getKey(), issue);
+            loaded++;
+         }
+         return loaded;
       } finally {
-         executor.shutdownNow();
+         executor.shutdown();
       }
    }
 
@@ -480,7 +485,7 @@ public class JiraIssueManager implements IssueManager {
       } else if (descriptionElement.isJsonPrimitive()) {
          return descriptionElement.getAsString();
       } else {
-         // Jira Cloud can return Atlassian Document Format objects for description.
+         // Jira Cloud may return Atlassian Document Format objects.
          return descriptionElement.toString();
       }
    }
