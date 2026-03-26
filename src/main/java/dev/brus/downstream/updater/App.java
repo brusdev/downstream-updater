@@ -47,6 +47,7 @@ import java.util.Queue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import dev.brus.downstream.updater.issue.RedHatJiraIssueManager;
 
 /**
  * Hello world!
@@ -315,7 +316,6 @@ public class App {
          upstreamIssueManager.loadIssues();
       }
 
-
       // Load downstream issues
       File downstreamIssuesFile = new File(targetDir, downstreamRepositoryBaseName + "-downstream-issues.json");
       DownstreamIssueManager downstreamIssueManager = issueManagerFactory.getDownstreamIssueManager(
@@ -325,6 +325,18 @@ public class App {
       } else {
          downstreamIssueManager.loadIssues();
       }
+
+      // Synchronize upstream issues to downstream
+      if (project.getSynchronizeIssues() != null && project.getSynchronizeIssues()) {
+         synchronizeIssues(upstreamIssueManager, downstreamIssueManager);
+         // then reload the issues
+         if (downstreamIssuesFile.exists()) {
+            downstreamIssueManager.loadIssues(downstreamIssuesFile);
+         } else {
+            downstreamIssueManager.loadIssues();
+         }
+      }
+
 
       // Link upstream issues
       for (Issue issue : downstreamIssueManager.getIssues()) {
@@ -637,6 +649,23 @@ public class App {
          loadRevertingChain(recursiveRevertingCommitEntry, revertingChainCount + 1, revertingCommits, revertingChain);
       } else {
          revertingChain.add(revertingCommitEntry.getValue());
+      }
+   }
+
+   private static void synchronizeIssues(IssueManager upstreamIssueManager, DownstreamIssueManager downstreamIssueManager) throws Exception {
+      for (Issue upstreamIssue : upstreamIssueManager.getIssues()) {
+         if (downstreamIssueManager.getIssues().stream().noneMatch(issue -> issue.getIssues().contains(upstreamIssue.getKey()))) {
+            logger.info("Creating downstream issue for upstream issue " + upstreamIssue.getKey());
+
+            Issue downstreamIssue = ((RedHatJiraIssueManager) downstreamIssueManager).createIssue(
+               upstreamIssue.getSummary(),
+               upstreamIssue.getDescription(),
+               upstreamIssue.getType(),
+               upstreamIssue.getAssignee(),
+               "",
+               upstreamIssue.getLabels());
+            downstreamIssueManager.addIssueUpstreamIssues(downstreamIssue.getKey(), upstreamIssue.getKey());
+         }
       }
    }
 }

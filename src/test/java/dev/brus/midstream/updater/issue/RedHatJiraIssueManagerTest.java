@@ -26,348 +26,467 @@ public class RedHatJiraIssueManagerTest {
    public void testAddIssueUpstreamIssues() throws Exception {
       MockWebServer mockWebServer = new MockWebServer();
       mockWebServer.start();
+      try {
+         String upstreamServerBaseURL = "https://issues.apache.org/jira";
+         IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
+            null, "ARTEMIS"));
 
-      String upstreamServerBaseURL = "https://issues.apache.org/jira";
-      IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
-         null, "ARTEMIS"));
+         String upstreamIssueKey0 = "ARTEMIS-100";
+         String upstreamIssueUrl0 = upstreamServerBaseURL + "/browse/" + upstreamIssueKey0;
+         Mockito.when(upstreamIssueManager.getIssue(upstreamIssueKey0)).thenReturn(
+            new Issue().setKey(upstreamIssueKey0).setUrl(upstreamIssueUrl0));
 
-      String upstreamIssueKey0 = "ARTEMIS-100";
-      String upstreamIssueUrl0 = upstreamServerBaseURL + "/browse/" + upstreamIssueKey0;
-      Mockito.when(upstreamIssueManager.getIssue(upstreamIssueKey0)).thenReturn(
-         new Issue().setKey(upstreamIssueKey0).setUrl(upstreamIssueUrl0));
+         String upstreamIssueKey1 = "ARTEMIS-101";
+         String upstreamIssueUrl1 = upstreamServerBaseURL + "/browse/" + upstreamIssueKey0;
+         Mockito.when(upstreamIssueManager.getIssue(upstreamIssueKey1)).thenReturn(
+            new Issue().setKey(upstreamIssueKey1).setUrl(upstreamIssueUrl1));
 
-      String upstreamIssueKey1 = "ARTEMIS-101";
-      String upstreamIssueUrl1 = upstreamServerBaseURL + "/browse/" + upstreamIssueKey0;
-      Mockito.when(upstreamIssueManager.getIssue(upstreamIssueKey1)).thenReturn(
-         new Issue().setKey(upstreamIssueKey1).setUrl(upstreamIssueUrl1));
+         RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
+            null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
 
-      RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
-         null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
+         String downstreamIssueKey = "ENTMQBR-100";
+         JsonObject downstreamIssueObject = new JsonObject();
+         {
+            downstreamIssueObject.addProperty("key", downstreamIssueKey);
+            JsonObject fieldsObject = new JsonObject();
+            fieldsObject.addProperty("customfield_12314640", upstreamIssueKey0);
+            downstreamIssueObject.add("fields", fieldsObject);
+         }
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(downstreamIssueObject.toString()));
 
-      String downstreamIssueKey = "ENTMQBR-100";
-      JsonObject downstreamIssueObject = new JsonObject();
-      {
-         downstreamIssueObject.addProperty("key", downstreamIssueKey);
-         JsonObject fieldsObject = new JsonObject();
-         fieldsObject.addProperty("customfield_12314640", upstreamIssueKey0);
-         downstreamIssueObject.add("fields", fieldsObject);
+         mockWebServer.enqueue(new MockResponse());
+
+         issueManager.addIssueUpstreamIssues(downstreamIssueKey, upstreamIssueKey1);
+
+         RecordedRequest loadIssueRecordedRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(loadIssueRecordedRequest.getBody());
+
+         RecordedRequest putIssueRecordedRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(putIssueRecordedRequest.getBody());
+
+         try (InputStreamReader inputStreamReader = new InputStreamReader(putIssueRecordedRequest.getBody().inputStream())) {
+            JsonObject issueObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
+
+            JsonObject issueFields = issueObject.getAsJsonObject("fields");
+            JsonElement upstreamJiraField = issueFields.get("customfield_12314640");
+            String upstreamJiraFieldValue = upstreamJiraField.getAsString();
+            Assert.assertTrue(upstreamJiraFieldValue.contains(upstreamIssueUrl0 + ", " + upstreamIssueUrl1));
+         }
+      } finally {
+         mockWebServer.shutdown();
+         mockWebServer.close();
       }
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(downstreamIssueObject.toString()));
-
-      mockWebServer.enqueue(new MockResponse());
-
-      issueManager.addIssueUpstreamIssues(downstreamIssueKey, upstreamIssueKey1);
-
-      RecordedRequest loadIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(loadIssueRecordedRequest.getBody());
-
-      RecordedRequest putIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(putIssueRecordedRequest.getBody());
-
-      try (InputStreamReader inputStreamReader = new InputStreamReader(putIssueRecordedRequest.getBody().inputStream())) {
-         JsonObject issueObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
-
-         JsonObject issueFields = issueObject.getAsJsonObject("fields");
-         JsonElement upstreamJiraField = issueFields.get("customfield_12314640");
-         String upstreamJiraFieldValue = upstreamJiraField.getAsString();
-         Assert.assertTrue(upstreamJiraFieldValue.contains(upstreamIssueUrl0 + ", " + upstreamIssueUrl1));
-      }
-
-      mockWebServer.shutdown();
    }
 
    @Test
    public void testCreateIssue() throws Exception {
       MockWebServer mockWebServer = new MockWebServer();
       mockWebServer.start();
+      try {
+         String upstreamServerBaseURL = "https://issues.apache.org/jira";
+         IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
+            null, "ARTEMIS"));
 
-      String upstreamServerBaseURL = "https://issues.apache.org/jira";
-      IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
-         null, "ARTEMIS"));
+         RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
+            null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
 
-      RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
-         null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
-
-      String downstreamIssueKey = "ENTMQBR-100";
-      JsonObject createReponseDownstreamIssueObject = new JsonObject();
-      {
-         createReponseDownstreamIssueObject.addProperty("key", downstreamIssueKey);
-      }
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(createReponseDownstreamIssueObject.toString()));
-
-      JsonObject downstreamIssueObject = new JsonObject();
-      {
-         downstreamIssueObject.addProperty("key", downstreamIssueKey);
-         JsonObject fieldsObject = new JsonObject();
+         String downstreamIssueKey = "ENTMQBR-100";
+         JsonObject createReponseDownstreamIssueObject = new JsonObject();
          {
-            JsonObject userObject = new JsonObject();
-            userObject.addProperty("name", TEST_USER_NAME);
-            fieldsObject.add("creator", userObject);
-            fieldsObject.add("reporter", userObject);
-
-            JsonObject statusObject = new JsonObject();
-            statusObject.addProperty("name", "New");
-            fieldsObject.add("status", statusObject);
-
-            JsonObject issueTypeObject = new JsonObject();
-            issueTypeObject.addProperty("name", "Bug");
-            fieldsObject.add("issuetype", issueTypeObject);
-
-            fieldsObject.addProperty("summary", "Test");
-            fieldsObject.addProperty("created", "2000-01-01T00:00:00.000+0000");
-            fieldsObject.addProperty("updated", "2000-01-01T00:00:00.000+0000");
+            createReponseDownstreamIssueObject.addProperty("key", downstreamIssueKey);
          }
-         downstreamIssueObject.add("fields", fieldsObject);
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(createReponseDownstreamIssueObject.toString()));
+
+         JsonObject downstreamIssueObject = new JsonObject();
+         {
+            downstreamIssueObject.addProperty("key", downstreamIssueKey);
+            JsonObject fieldsObject = new JsonObject();
+            {
+               JsonObject userObject = new JsonObject();
+               userObject.addProperty("name", TEST_USER_NAME);
+               fieldsObject.add("creator", userObject);
+               fieldsObject.add("reporter", userObject);
+
+               JsonObject statusObject = new JsonObject();
+               statusObject.addProperty("name", "New");
+               fieldsObject.add("status", statusObject);
+
+               JsonObject issueTypeObject = new JsonObject();
+               issueTypeObject.addProperty("name", "Bug");
+               fieldsObject.add("issuetype", issueTypeObject);
+
+               fieldsObject.addProperty("summary", "Test");
+               fieldsObject.addProperty("created", "2000-01-01T00:00:00.000+0000");
+               fieldsObject.addProperty("updated", "2000-01-01T00:00:00.000+0000");
+            }
+            downstreamIssueObject.add("fields", fieldsObject);
+         }
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(downstreamIssueObject.toString()));
+
+         Issue newIssue = issueManager.createIssue("Productize AMQ Broker 7.10.3.OPR.1.CR1", "", "Task", "dbruscin", "AMQ 7.10.3.OPR.1.GA", Collections.emptyList());
+
+         RecordedRequest createIssueRecordedRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(createIssueRecordedRequest.getBody());
+
+         Assert.assertEquals(downstreamIssueKey, newIssue.getKey());
+      } finally {
+         mockWebServer.shutdown();
+         mockWebServer.close();
       }
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(downstreamIssueObject.toString()));
-
-      Issue newIssue = issueManager.createIssue("Productize AMQ Broker 7.10.3.OPR.1.CR1", "", "Task", "dbruscin", "AMQ 7.10.3.OPR.1.GA", Collections.emptyList());
-
-      RecordedRequest createIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(createIssueRecordedRequest.getBody());
-
-      Assert.assertEquals(downstreamIssueKey, newIssue.getKey());
-
-      mockWebServer.shutdown();
    }
 
    @Test
    public void testTransitionIssue() throws Exception {
       MockWebServer mockWebServer = new MockWebServer();
       mockWebServer.start();
+      try {
+         String upstreamServerBaseURL = "https://issues.apache.org/jira";
+         IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
+            null, "ARTEMIS"));
 
-      String upstreamServerBaseURL = "https://issues.apache.org/jira";
-      IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
-         null, "ARTEMIS"));
+         RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
+            null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
 
-      RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
-         null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
-
-      String downstreamIssueKey = "ENTMQBR-100";
-      JsonObject statusDownstreamIssueObject = new JsonObject();
-      {
-         statusDownstreamIssueObject.addProperty("key", downstreamIssueKey);
-         JsonObject fieldsObject = new JsonObject();
+         String downstreamIssueKey = "ENTMQBR-100";
+         JsonObject statusDownstreamIssueObject = new JsonObject();
          {
-            JsonObject statusObject = new JsonObject();
-            statusObject.addProperty("name", "New");
-            fieldsObject.add("status", statusObject);
+            statusDownstreamIssueObject.addProperty("key", downstreamIssueKey);
+            JsonObject fieldsObject = new JsonObject();
+            {
+               JsonObject statusObject = new JsonObject();
+               statusObject.addProperty("name", "New");
+               fieldsObject.add("status", statusObject);
+            }
+            statusDownstreamIssueObject.add("fields", fieldsObject);
          }
-         statusDownstreamIssueObject.add("fields", fieldsObject);
-      }
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(statusDownstreamIssueObject.toString()));
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(statusDownstreamIssueObject.toString()));
 
-      JsonObject transitionsDownstreamIssueObject = new JsonObject();
-      {
-         JsonArray transitionsObject = new JsonArray();
+         JsonObject transitionsDownstreamIssueObject = new JsonObject();
          {
-            JsonObject transitionObject = new JsonObject();
-            transitionObject.addProperty("id", "0");
+            JsonArray transitionsObject = new JsonArray();
+            {
+               JsonObject transitionObject = new JsonObject();
+               transitionObject.addProperty("id", "0");
 
-            JsonObject toObject = new JsonObject();
-            toObject.addProperty("name", "Done");
-            transitionObject.add("to", toObject);
+               JsonObject toObject = new JsonObject();
+               toObject.addProperty("name", "Done");
+               transitionObject.add("to", toObject);
 
-            transitionsObject.add(transitionObject);
+               transitionsObject.add(transitionObject);
+            }
+            transitionsDownstreamIssueObject.add("transitions", transitionsObject);
          }
-         transitionsDownstreamIssueObject.add("transitions", transitionsObject);
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(transitionsDownstreamIssueObject.toString()));
+
+         mockWebServer.enqueue(new MockResponse());
+
+         issueManager.transitionIssue(downstreamIssueKey, "Done");
+
+         RecordedRequest statusIssueRecordedRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(statusIssueRecordedRequest.getBody());
+
+         RecordedRequest transitionsIssueRecordedRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(transitionsIssueRecordedRequest.getBody());
+
+         RecordedRequest transitionIssueRecordedRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(transitionIssueRecordedRequest.getBody());
+      } finally {
+         mockWebServer.shutdown();
+         mockWebServer.close();
       }
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(transitionsDownstreamIssueObject.toString()));
-
-      mockWebServer.enqueue(new MockResponse());
-
-      issueManager.transitionIssue(downstreamIssueKey, "Done");
-
-      RecordedRequest statusIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(statusIssueRecordedRequest.getBody());
-
-      RecordedRequest transitionsIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(transitionsIssueRecordedRequest.getBody());
-
-      RecordedRequest transitionIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(transitionIssueRecordedRequest.getBody());
-
-      mockWebServer.shutdown();
    }
 
    @Test
    public void testLoadDocumentationIssue() throws Exception {
       MockWebServer mockWebServer = new MockWebServer();
       mockWebServer.start();
+      try {
+         String upstreamServerBaseURL = "https://issues.apache.org/jira";
+         IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
+            null, "ARTEMIS"));
 
-      String upstreamServerBaseURL = "https://issues.apache.org/jira";
-      IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
-         null, "ARTEMIS"));
+         RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
+            null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
 
-      RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
-         null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
-
-      JsonObject emptySearchResultObject = new JsonObject();
-      {
-         emptySearchResultObject.addProperty("startAt", 0);
-         emptySearchResultObject.addProperty("maxResults", 0);
-         emptySearchResultObject.addProperty("total", 1);
-         emptySearchResultObject.add("issues", new JsonArray());
-      }
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(emptySearchResultObject.toString()));
-
-      String downstreamIssueKey = "ENTMQBR-100";
-      JsonObject searchResultObject = new JsonObject();
-      {
-         searchResultObject.addProperty("startAt", 0);
-         searchResultObject.addProperty("maxResults", 0);
-         searchResultObject.addProperty("total", 1);
-
-         JsonArray issuesObject = new JsonArray();
+         JsonObject emptySearchResultObject = new JsonObject();
          {
-            JsonObject downstreamIssueObject = new JsonObject();
-            {
-               downstreamIssueObject.addProperty("key", downstreamIssueKey);
-               JsonObject fieldsObject = new JsonObject();
-               {
-                  JsonObject userObject = new JsonObject();
-                  userObject.addProperty("name", TEST_USER_NAME);
-                  fieldsObject.add("creator", userObject);
-                  fieldsObject.add("reporter", userObject);
-
-                  JsonObject statusObject = new JsonObject();
-                  statusObject.addProperty("name", "New");
-                  fieldsObject.add("status", statusObject);
-
-                  JsonObject issueTypeObject = new JsonObject();
-                  issueTypeObject.addProperty("name", "Bug");
-                  fieldsObject.add("issuetype", issueTypeObject);
-
-                  JsonArray componentsArray = new JsonArray();
-                  {
-                     JsonObject documentationComponentObject = new JsonObject();
-                     documentationComponentObject.addProperty("name", "documentation");
-                     componentsArray.add(documentationComponentObject);
-                  }
-                  fieldsObject.add("components", componentsArray);
-
-                  fieldsObject.addProperty("summary", "Test");
-                  fieldsObject.addProperty("created", "2000-01-01T00:00:00.000+0000");
-                  fieldsObject.addProperty("updated", "2000-01-01T00:00:00.000+0000");
-               }
-               downstreamIssueObject.add("fields", fieldsObject);
-            }
-            issuesObject.add(downstreamIssueObject);
+            emptySearchResultObject.addProperty("startAt", 0);
+            emptySearchResultObject.addProperty("maxResults", 0);
+            emptySearchResultObject.addProperty("total", 1);
+            emptySearchResultObject.add("issues", new JsonArray());
          }
-         searchResultObject.add("issues", issuesObject);
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(emptySearchResultObject.toString()));
+
+         String downstreamIssueKey = "ENTMQBR-100";
+         JsonObject searchResultObject = new JsonObject();
+         {
+            searchResultObject.addProperty("startAt", 0);
+            searchResultObject.addProperty("maxResults", 0);
+            searchResultObject.addProperty("total", 1);
+
+            JsonArray issuesObject = new JsonArray();
+            {
+               JsonObject downstreamIssueObject = new JsonObject();
+               {
+                  downstreamIssueObject.addProperty("key", downstreamIssueKey);
+                  JsonObject fieldsObject = new JsonObject();
+                  {
+                     JsonObject userObject = new JsonObject();
+                     userObject.addProperty("name", TEST_USER_NAME);
+                     fieldsObject.add("creator", userObject);
+                     fieldsObject.add("reporter", userObject);
+
+                     JsonObject statusObject = new JsonObject();
+                     statusObject.addProperty("name", "New");
+                     fieldsObject.add("status", statusObject);
+
+                     JsonObject issueTypeObject = new JsonObject();
+                     issueTypeObject.addProperty("name", "Bug");
+                     fieldsObject.add("issuetype", issueTypeObject);
+
+                     JsonArray componentsArray = new JsonArray();
+                     {
+                        JsonObject documentationComponentObject = new JsonObject();
+                        documentationComponentObject.addProperty("name", "documentation");
+                        componentsArray.add(documentationComponentObject);
+                     }
+                     fieldsObject.add("components", componentsArray);
+
+                     fieldsObject.addProperty("summary", "Test");
+                     fieldsObject.addProperty("created", "2000-01-01T00:00:00.000+0000");
+                     fieldsObject.addProperty("updated", "2000-01-01T00:00:00.000+0000");
+                  }
+                  downstreamIssueObject.add("fields", fieldsObject);
+               }
+               issuesObject.add(downstreamIssueObject);
+            }
+            searchResultObject.add("issues", issuesObject);
+         }
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(searchResultObject.toString()));
+
+         issueManager.loadIssues();
+
+         Issue issue = issueManager.getIssue(downstreamIssueKey);
+         Assert.assertNotNull(issue);
+         Assert.assertTrue(issue.isDocumentation());
+
+         RecordedRequest statusIssueRecordedRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(statusIssueRecordedRequest.getBody());
+
+         RecordedRequest transitionsIssueRecordedRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(transitionsIssueRecordedRequest.getBody());
+      } finally {
+         mockWebServer.shutdown();
+         mockWebServer.close();
       }
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(searchResultObject.toString()));
-
-      issueManager.loadIssues();
-
-      Issue issue = issueManager.getIssue(downstreamIssueKey);
-      Assert.assertNotNull(issue);
-      Assert.assertTrue(issue.isDocumentation());
-
-      RecordedRequest statusIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(statusIssueRecordedRequest.getBody());
-
-      RecordedRequest transitionsIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(transitionsIssueRecordedRequest.getBody());
-
-      mockWebServer.shutdown();
    }
 
    @Test
    public void testLoadingIssueWithRateLimit() throws Exception {
       MockWebServer mockWebServer = new MockWebServer();
       mockWebServer.start();
+      try {
+         String upstreamServerBaseURL = "https://issues.apache.org/jira";
+         IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
+             null, "ARTEMIS"));
 
-      String upstreamServerBaseURL = "https://issues.apache.org/jira";
-      IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
-          null, "ARTEMIS"));
+         RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
+             null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
 
-      RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
-          null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
+         mockWebServer.enqueue(new MockResponse()
+             .setResponseCode(429));
 
-      mockWebServer.enqueue(new MockResponse()
-          .setResponseCode(429));
-
-      JsonObject emptySearchResultObject = new JsonObject();
-      {
-         emptySearchResultObject.addProperty("startAt", 0);
-         emptySearchResultObject.addProperty("maxResults", 0);
-         emptySearchResultObject.addProperty("total", 1);
-         emptySearchResultObject.add("issues", new JsonArray());
-      }
-      mockWebServer.enqueue(new MockResponse()
-          .addHeader("Content-Type", "application/json; charset=utf-8")
-          .setBody(emptySearchResultObject.toString()));
-
-      mockWebServer.enqueue(new MockResponse()
-          .setResponseCode(429));
-
-      String downstreamIssueKey = "ENTMQBR-100";
-      JsonObject searchResultObject = new JsonObject();
-      {
-         searchResultObject.addProperty("startAt", 0);
-         searchResultObject.addProperty("maxResults", 0);
-         searchResultObject.addProperty("total", 1);
-
-         JsonArray issuesObject = new JsonArray();
+         JsonObject emptySearchResultObject = new JsonObject();
          {
-            JsonObject downstreamIssueObject = new JsonObject();
-            {
-               downstreamIssueObject.addProperty("key", downstreamIssueKey);
-               JsonObject fieldsObject = new JsonObject();
-               {
-                  JsonObject userObject = new JsonObject();
-                  userObject.addProperty("name", TEST_USER_NAME);
-                  fieldsObject.add("creator", userObject);
-                  fieldsObject.add("reporter", userObject);
-
-                  JsonObject statusObject = new JsonObject();
-                  statusObject.addProperty("name", "New");
-                  fieldsObject.add("status", statusObject);
-
-                  JsonObject issueTypeObject = new JsonObject();
-                  issueTypeObject.addProperty("name", "Bug");
-                  fieldsObject.add("issuetype", issueTypeObject);
-
-                  fieldsObject.addProperty("summary", "Test");
-                  fieldsObject.addProperty("created", "2000-01-01T00:00:00.000+0000");
-                  fieldsObject.addProperty("updated", "2000-01-01T00:00:00.000+0000");
-               }
-               downstreamIssueObject.add("fields", fieldsObject);
-            }
-            issuesObject.add(downstreamIssueObject);
+            emptySearchResultObject.addProperty("startAt", 0);
+            emptySearchResultObject.addProperty("maxResults", 0);
+            emptySearchResultObject.addProperty("total", 1);
+            emptySearchResultObject.add("issues", new JsonArray());
          }
-         searchResultObject.add("issues", issuesObject);
+         mockWebServer.enqueue(new MockResponse()
+             .addHeader("Content-Type", "application/json; charset=utf-8")
+             .setBody(emptySearchResultObject.toString()));
+
+         mockWebServer.enqueue(new MockResponse()
+             .setResponseCode(429));
+
+         String downstreamIssueKey = "ENTMQBR-100";
+         JsonObject searchResultObject = new JsonObject();
+         {
+            searchResultObject.addProperty("startAt", 0);
+            searchResultObject.addProperty("maxResults", 0);
+            searchResultObject.addProperty("total", 1);
+
+            JsonArray issuesObject = new JsonArray();
+            {
+               JsonObject downstreamIssueObject = new JsonObject();
+               {
+                  downstreamIssueObject.addProperty("key", downstreamIssueKey);
+                  JsonObject fieldsObject = new JsonObject();
+                  {
+                     JsonObject userObject = new JsonObject();
+                     userObject.addProperty("name", TEST_USER_NAME);
+                     fieldsObject.add("creator", userObject);
+                     fieldsObject.add("reporter", userObject);
+
+                     JsonObject statusObject = new JsonObject();
+                     statusObject.addProperty("name", "New");
+                     fieldsObject.add("status", statusObject);
+
+                     JsonObject issueTypeObject = new JsonObject();
+                     issueTypeObject.addProperty("name", "Bug");
+                     fieldsObject.add("issuetype", issueTypeObject);
+
+                     fieldsObject.addProperty("summary", "Test");
+                     fieldsObject.addProperty("created", "2000-01-01T00:00:00.000+0000");
+                     fieldsObject.addProperty("updated", "2000-01-01T00:00:00.000+0000");
+                  }
+                  downstreamIssueObject.add("fields", fieldsObject);
+               }
+               issuesObject.add(downstreamIssueObject);
+            }
+            searchResultObject.add("issues", issuesObject);
+         }
+         mockWebServer.enqueue(new MockResponse()
+             .addHeader("Content-Type", "application/json; charset=utf-8")
+             .setBody(searchResultObject.toString()));
+
+         issueManager.loadIssues();
+
+         Issue issue = issueManager.getIssue(downstreamIssueKey);
+         Assert.assertNotNull(issue);
+
+         RecordedRequest statusIssueRecordedRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(statusIssueRecordedRequest.getBody());
+
+         RecordedRequest transitionsIssueRecordedRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(transitionsIssueRecordedRequest.getBody());
+      } finally {
+         mockWebServer.shutdown();
+         mockWebServer.close();
       }
-      mockWebServer.enqueue(new MockResponse()
-          .addHeader("Content-Type", "application/json; charset=utf-8")
-          .setBody(searchResultObject.toString()));
+   }
 
-      issueManager.loadIssues();
+   @Test
+   public void testIssueSynchronization() throws Exception {
+      MockWebServer mockWebServer = new MockWebServer();
+      mockWebServer.start();
+      try {
+         String upstreamServerBaseURL = "https://github.com/apache/activemq-artemis";
+         IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/issues",
+            null, "ARTEMIS"));
 
-      Issue issue = issueManager.getIssue(downstreamIssueKey);
-      Assert.assertNotNull(issue);
+         String upstreamIssueKey = "ARTEMIS-100";
+         String upstreamIssueUrl = upstreamServerBaseURL + "/issues/" + upstreamIssueKey;
+         Issue upstreamIssue = new Issue()
+            .setKey(upstreamIssueKey)
+            .setUrl(upstreamIssueUrl)
+            .setSummary("Test Summary")
+            .setDescription("Test Description")
+            .setType("Bug")
+            .setAssignee("testuser")
+            .setTargetRelease("2.17.0");
+         upstreamIssue.getLabels().add("test-label");
 
-      RecordedRequest statusIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(statusIssueRecordedRequest.getBody());
+         Mockito.when(upstreamIssueManager.getIssue(upstreamIssueKey)).thenReturn(upstreamIssue);
 
-      RecordedRequest transitionsIssueRecordedRequest = mockWebServer.takeRequest();
-      Assert.assertNotNull(transitionsIssueRecordedRequest.getBody());
+         RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("/").toString().replaceAll("/$", ""),
+            null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
 
-      mockWebServer.shutdown();
+         // 1. Mock the response for creating an issue
+         String downstreamIssueKey = "ENTMQBR-123";
+         JsonObject createResponse = new JsonObject();
+         createResponse.addProperty("key", downstreamIssueKey);
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(createResponse.toString()));
+
+         // 2. Mock the response for GETting the newly created issue
+         JsonObject getResponse = new JsonObject();
+         getResponse.addProperty("key", downstreamIssueKey);
+         JsonObject fieldsObject = new JsonObject();
+         fieldsObject.addProperty("summary", "Test Summary");
+         JsonObject userObject = new JsonObject();
+         userObject.addProperty("name", "testuser");
+         fieldsObject.add("creator", userObject);
+         fieldsObject.add("reporter", userObject);
+         JsonObject statusObject = new JsonObject();
+         statusObject.addProperty("name", "New");
+         fieldsObject.add("status", statusObject);
+         JsonObject issueTypeObject = new JsonObject();
+         issueTypeObject.addProperty("name", "Bug");
+         fieldsObject.add("issuetype", issueTypeObject);
+         fieldsObject.addProperty("created", "2000-01-01T00:00:00.000+0000");
+         fieldsObject.addProperty("updated", "2000-01-01T00:00:00.000+0000");
+         getResponse.add("fields", fieldsObject);
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(getResponse.toString()));
+
+         // 3. Mock the response for GETting the issue before updating upstream links
+         mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/json; charset=utf-8")
+            .setBody(getResponse.toString()));
+
+         // 4. Mock the response for the PUT request to add upstream links
+         mockWebServer.enqueue(new MockResponse().setResponseCode(204));
+
+         // --- Execute the logic ---
+         Issue newDownstreamIssue = issueManager.createIssue(
+            upstreamIssue.getSummary(),
+            upstreamIssue.getDescription(),
+            upstreamIssue.getType(),
+            upstreamIssue.getAssignee(),
+            upstreamIssue.getTargetRelease(),
+            upstreamIssue.getLabels()
+         );
+
+         issueManager.addIssueUpstreamIssues(newDownstreamIssue.getKey(), upstreamIssue.getKey());
+
+         // --- Verify the requests ---
+
+         // Verify create issue request
+         RecordedRequest createRequest = mockWebServer.takeRequest();
+         Assert.assertEquals("/rest/api/2/issue/", createRequest.getPath());
+         Assert.assertEquals("POST", createRequest.getMethod());
+         String createBody = createRequest.getBody().readUtf8();
+         JsonObject createPayload = JsonParser.parseString(createBody).getAsJsonObject();
+         Assert.assertEquals("Test Summary", createPayload.getAsJsonObject("fields").get("summary").getAsString());
+         Assert.assertEquals("Test Description", createPayload.getAsJsonObject("fields").get("description").getAsString());
+
+         // Verify get issue request
+         RecordedRequest getRequest1 = mockWebServer.takeRequest();
+         Assert.assertEquals("/rest/api/2/issue/" + downstreamIssueKey, getRequest1.getPath());
+
+         // Verify get issue for update request
+         RecordedRequest getRequest2 = mockWebServer.takeRequest();
+         Assert.assertEquals("/rest/api/2/issue/" + downstreamIssueKey, getRequest2.getPath());
+
+         // Verify update issue request
+         RecordedRequest updateRequest = mockWebServer.takeRequest();
+         Assert.assertEquals("/rest/api/2/issue/" + downstreamIssueKey, updateRequest.getPath());
+         Assert.assertEquals("PUT", updateRequest.getMethod());
+         String updateBody = updateRequest.getBody().readUtf8();
+         JsonObject updatePayload = JsonParser.parseString(updateBody).getAsJsonObject();
+         String upstreamJiraField = updatePayload.getAsJsonObject("fields").get("customfield_12314640").getAsString();
+         Assert.assertEquals(upstreamIssueUrl, upstreamJiraField);
+      } finally {
+         mockWebServer.shutdown();
+         mockWebServer.close();
+      }
    }
 }
