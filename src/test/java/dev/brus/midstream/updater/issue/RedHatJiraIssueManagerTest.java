@@ -2,6 +2,7 @@ package dev.brus.midstream.updater.issue;
 
 import java.io.InputStreamReader;
 import java.util.Collections;
+import java.util.Date;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -372,110 +373,82 @@ public class RedHatJiraIssueManagerTest {
    }
 
    @Test
-   public void testLoadIssuesUsesV3SearchJqlWithContinuationToken() throws Exception {
+   public void testLoadingIssueWithBulkFetch() throws Exception {
       MockWebServer mockWebServer = new MockWebServer();
       mockWebServer.start();
+      
+      try {
+         // Response 1: approximate-count endpoint
+         String countResponse = "{\"count\": 1}";
+         mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .setBody(countResponse)
+            .addHeader("Content-Type", "application/json"));
 
-      String upstreamServerBaseURL = "https://issues.apache.org/jira";
-      IssueManager upstreamIssueManager = Mockito.spy(new JiraIssueManager(upstreamServerBaseURL + "/rest/api/2",
-         null, "ARTEMIS"));
+         // Response 2: search/jql endpoint (ID-only search)
+         String jqlSearchResponse = "{\"issues\": [{\"id\": \"123\"}], \"total\": 1}";
+         mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .setBody(jqlSearchResponse)
+            .addHeader("Content-Type", "application/json"));
 
-      RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/3").toString(),
-         null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
+         // Response 3: bulkfetch endpoint
+         String bulkfetchResponse = "{\"issues\": [{" +
+            "\"key\": \"ENTMQBR-123\", " +
+            "\"fields\": {" +
+            "\"summary\": \"Test Issue\", " +
+            "\"status\": {\"name\": \"Open\"}, " +
+            "\"assignee\": {\"name\": \"user1\"}, " +
+            "\"created\": \"2024-01-01T00:00:00.000-0500\", " +
+            "\"updated\": \"2024-01-02T00:00:00.000-0500\", " +
+            "\"description\": \"Test description\", " +
+            "\"issuetype\": {\"name\": \"Bug\"}, " +
+            "\"reporter\": {\"name\": \"reporter1\"}, " +
+            "\"labels\": [], " +
+            "\"components\": [], " +
+            "\"resolution\": null, " +
+            "\"creator\": {\"name\": \"creator1\"}" +
+            "}}]}";
+         mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .setBody(bulkfetchResponse)
+            .addHeader("Content-Type", "application/json"));
 
-      JsonObject countResponse = new JsonObject();
-      countResponse.addProperty("count", 2);
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(countResponse.toString()));
 
-      JsonObject page1 = new JsonObject();
-      JsonArray issues1 = new JsonArray();
-      {
-         JsonObject issue = new JsonObject();
-         issue.addProperty("key", "ENTMQBR-100");
-         JsonObject fields = new JsonObject();
+         JiraIssueManager issueManager = new JiraIssueManager(
+            mockWebServer.url("rest/api/2").toString(), 
+            null, 
+            "ENTMQBR", 
+            true  // useOptimizedLoading = true
+         );
 
-         JsonObject user = new JsonObject();
-         user.addProperty("accountId", TEST_USER_NAME);
-         fields.add("assignee", user);
-         fields.add("creator", user);
-         fields.add("reporter", user);
+         
+         Date lastUpdated = new Date(0);
+         issueManager.loadIssues(lastUpdated);
 
-         JsonObject status = new JsonObject();
-         status.addProperty("name", "New");
-         fields.add("status", status);
+     
+         RecordedRequest countRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(countRequest);
+         Assert.assertTrue(countRequest.getPath().contains("search/approximate-count"));
 
-         JsonObject issueType = new JsonObject();
-         issueType.addProperty("name", "Bug");
-         fields.add("issuetype", issueType);
 
-         fields.addProperty("summary", "Issue 100");
-         fields.addProperty("created", "2000-01-01T00:00:00.000+0000");
-         fields.addProperty("updated", "2000-01-01T00:00:00.000+0000");
-         fields.add("components", new JsonArray());
-         fields.add("labels", new JsonArray());
-         fields.add("description", new JsonObject());
+         RecordedRequest jqlRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(jqlRequest);
+         Assert.assertTrue(jqlRequest.getPath().contains("search/jql"));
+         String jqlBody = jqlRequest.getBody().readUtf8();
+         Assert.assertTrue("Expected fields:[\"id\"] in search/jql request", 
+            jqlBody.contains("\"fields\"") && jqlBody.contains("\"id\""));
 
-         issue.add("fields", fields);
-         issues1.add(issue);
+  
+         RecordedRequest bulkfetchRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(bulkfetchRequest);
+         Assert.assertTrue(bulkfetchRequest.getPath().contains("issue/bulkfetch"));
+         String bulkfetchBody = bulkfetchRequest.getBody().readUtf8();
+         Assert.assertTrue("Expected issueIdsOrKeys in bulkfetch request", 
+            bulkfetchBody.contains("issueIdsOrKeys"));
+
+      } finally {
+         mockWebServer.shutdown();
       }
-      page1.add("issues", issues1);
-      page1.addProperty("nextPageToken", "TOKEN-1");
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(page1.toString()));
-
-      JsonObject page2 = new JsonObject();
-      JsonArray issues2 = new JsonArray();
-      {
-         JsonObject issue = new JsonObject();
-         issue.addProperty("key", "ENTMQBR-101");
-         JsonObject fields = new JsonObject();
-
-         JsonObject user = new JsonObject();
-         user.addProperty("accountId", TEST_USER_NAME);
-         fields.add("assignee", user);
-         fields.add("creator", user);
-         fields.add("reporter", user);
-
-         JsonObject status = new JsonObject();
-         status.addProperty("name", "New");
-         fields.add("status", status);
-
-         JsonObject issueType = new JsonObject();
-         issueType.addProperty("name", "Bug");
-         fields.add("issuetype", issueType);
-
-         fields.addProperty("summary", "Issue 101");
-         fields.addProperty("created", "2000-01-01T00:00:00.000+0000");
-         fields.addProperty("updated", "2000-01-01T00:00:00.000+0000");
-         fields.add("components", new JsonArray());
-         fields.add("labels", new JsonArray());
-
-         issue.add("fields", fields);
-         issues2.add(issue);
-      }
-      page2.add("issues", issues2);
-      mockWebServer.enqueue(new MockResponse()
-         .addHeader("Content-Type", "application/json; charset=utf-8")
-         .setBody(page2.toString()));
-
-      issueManager.loadIssues();
-
-      Assert.assertNotNull(issueManager.getIssue("ENTMQBR-100"));
-      Assert.assertNotNull(issueManager.getIssue("ENTMQBR-101"));
-
-      RecordedRequest countRequest = mockWebServer.takeRequest();
-      Assert.assertTrue(countRequest.getPath().contains("/rest/api/3/search/approximate-count"));
-
-      RecordedRequest pageRequest1 = mockWebServer.takeRequest();
-      Assert.assertTrue(pageRequest1.getPath().contains("/rest/api/3/search/jql"));
-
-      RecordedRequest pageRequest2 = mockWebServer.takeRequest();
-      Assert.assertTrue(pageRequest2.getPath().contains("/rest/api/3/search/jql"));
-      Assert.assertTrue(pageRequest2.getBody().readUtf8().contains("\"nextPageToken\":\"TOKEN-1\""));
-
-      mockWebServer.shutdown();
    }
 }
