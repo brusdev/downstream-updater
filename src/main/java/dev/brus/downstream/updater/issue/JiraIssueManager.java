@@ -42,6 +42,7 @@ import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -58,9 +59,10 @@ public class JiraIssueManager implements IssueManager {
 
    public final static String REST_API_PATH_V2 = "/rest/api/2";
    public final static String REST_API_PATH_V3 = "/rest/api/3";
-   protected final String apiVersion;
-   
    public final static String BROWSE_API_PATH = "/browse";
+
+   private final boolean useOptimizedLoading;
+   private final String restApiPath;
 
    private final static String ISSUE_TYPE_BUG = "Bug";
 
@@ -100,7 +102,6 @@ public class JiraIssueManager implements IssueManager {
          return nextPageToken;
       }
    }
-
    private static class SearchPageResult {
       private final int loadedCount;
       private final String nextPageToken;
@@ -108,6 +109,14 @@ public class JiraIssueManager implements IssueManager {
       private SearchPageResult(int loadedCount, String nextPageToken) {
          this.loadedCount = loadedCount;
          this.nextPageToken = nextPageToken;
+      }
+
+      public int getLoadedCount() {
+         return loadedCount;
+      }
+
+      public String getNextPageToken() {
+         return nextPageToken;
       }
    }
 
@@ -123,8 +132,8 @@ public class JiraIssueManager implements IssueManager {
       return projectKey;
    }
 
-   public String getApiVersion() {
-      return apiVersion;
+   public String getRestApiPath() {
+      return restApiPath;
    }
 
    @Override
@@ -132,53 +141,23 @@ public class JiraIssueManager implements IssueManager {
       return issueBaseUrl;
    }
 
-   // Falls back to v2 API if an unsupported version is provided.
-   public String getRestApiPath() {
-      if (REST_API_PATH_V2.equals(apiVersion) || REST_API_PATH_V3.equals(apiVersion)) {
-         return apiVersion;
-      } else {
-         return REST_API_PATH_V2;
-      }
-   }
-
-   // Prevents URL from ending with duplicated /rest/api/{2, 3} or /rest/api/{2,3}/.
-   private static String normalizeServerURL(String url) {
-      if (url.endsWith(REST_API_PATH_V2)) {
-         return url.substring(0, url.length() - REST_API_PATH_V2.length());
-      } else if (url.endsWith(REST_API_PATH_V2 + "/")) {
-         return url.substring(0, url.length() - (REST_API_PATH_V2.length() + 1));
-      } else if (url.endsWith(REST_API_PATH_V3)) {
-         return url.substring(0, url.length() - REST_API_PATH_V3.length());
-      } else if (url.endsWith(REST_API_PATH_V3 + "/")) {
-         return url.substring(0, url.length() - (REST_API_PATH_V3.length() + 1));
-      } else {
-         return url;
-      }
-   }
-
-   private static String resolveApiVersion(String url, String requested) {
-      if (url.endsWith(REST_API_PATH_V2) || url.endsWith(REST_API_PATH_V2 + "/")) {
-         return REST_API_PATH_V2;
-      } else if (url.endsWith(REST_API_PATH_V3) || url.endsWith(REST_API_PATH_V3 + "/")) {
-         return REST_API_PATH_V3;
-      } else {
-         return requested;
-      }
-   }
-
    public JiraIssueManager(String serverURL, String authString, String projectKey) {
-      this(serverURL, authString, projectKey, REST_API_PATH_V2);
+      this(serverURL, authString, projectKey, false, REST_API_PATH_V2);
    }
 
-   public JiraIssueManager(String serverURL, String authString, String projectKey, String apiVersion) {
-      String normalizedServerURL = normalizeServerURL(serverURL);
-      this.serverURL = normalizedServerURL;
+   public JiraIssueManager(String serverURL, String authString, String projectKey, boolean useOptimizedLoading) {
+      this(serverURL, authString, projectKey, useOptimizedLoading, REST_API_PATH_V2);
+   }
+
+   public JiraIssueManager(String serverURL, String authString, String projectKey, boolean useOptimizedLoading, String restApiPath) {
+      this.serverURL = serverURL;
       this.authString = authString;
       this.projectKey = projectKey;
-      this.apiVersion = resolveApiVersion(serverURL, apiVersion);
+      this.useOptimizedLoading = useOptimizedLoading;
+      this.restApiPath = restApiPath;
       this.issues = new HashMap<>();
 
-      this.issueBaseUrl = normalizedServerURL + BROWSE_API_PATH;
+      this.issueBaseUrl = serverURL + BROWSE_API_PATH;
       this.issueKeyPattern = Pattern.compile(projectKey + "-[0-9]+");
    }
 
@@ -207,7 +186,7 @@ public class JiraIssueManager implements IssueManager {
       loadIssues((Date)null);
    }
 
-   private void loadIssues(Date lastUpdated) throws Exception {
+   public void loadIssues(Date lastUpdated) throws Exception {
       int total;
       final int MAX_RESULTS = 250;
 
@@ -220,11 +199,11 @@ public class JiraIssueManager implements IssueManager {
       }
       String jql = "project = '" + projectKey + "'" + lastUpdatedQuery;
 
-      if (REST_API_PATH_V3.equals(getRestApiPath())) {
+      if (useOptimizedLoading) {
          JsonObject requestBody = new JsonObject();
          requestBody.addProperty("jql", jql);
 
-         HttpURLConnection searchConnection = createConnection(getRestApiPath() + "/search/approximate-count", connection -> {
+         HttpURLConnection searchConnection = createConnection(restApiPath + "/search/approximate-count", connection -> {
             try {
                connection.setRequestMethod("POST");
                connection.setDoOutput(true);
@@ -248,7 +227,7 @@ public class JiraIssueManager implements IssueManager {
          }
       } else {
          String query = "&jql=" + URLEncoder.encode(jql, StandardCharsets.UTF_8);
-         HttpURLConnection searchConnection = createConnection(getRestApiPath() + "/search?maxResults=0" + query, null);
+         HttpURLConnection searchConnection = createConnection(restApiPath + "/search?maxResults=0" + query, null);
          try {
             try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
                JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
@@ -262,14 +241,14 @@ public class JiraIssueManager implements IssueManager {
       int count = 0;
       long beginTimestamp = System.nanoTime();
 
-      if (REST_API_PATH_V3.equals(getRestApiPath())) {
+      if (useOptimizedLoading) {
          logger.info("Loading " + total + " issues using continuation token pagination");
 
          String nextPageToken = null;
          do {
-            SearchPageResult pageResult = loadIssuesV3Page(jql, MAX_RESULTS, nextPageToken);
-            count += pageResult.loadedCount;
-            nextPageToken = pageResult.nextPageToken;
+            SearchPageResult pageResult = loadIssuesWithBulkFetch(jql, MAX_RESULTS, nextPageToken);
+            count += pageResult.getLoadedCount();
+            nextPageToken = pageResult.getNextPageToken();
          } while (nextPageToken != null);
       } else {
          int taskCount = (int)Math.ceil((double)total / (double)MAX_RESULTS);
@@ -306,20 +285,121 @@ public class JiraIssueManager implements IssueManager {
          logger.warn("Error loading " + count + "/" + total + " issues");
       }
    }
+   private class SearchIdsPagePayload {
+      private final List<String> issueIdsOrKeys;
+      private final String nextPageToken;
 
-   private SearchPageResult loadIssuesV3Page(String jql, int maxResults, String nextPageToken) throws Exception {
-      SearchPagePayload payload = searchIssuesV3Page(jql, maxResults, nextPageToken);
-      int loadedCount = loadIssuesV3SearchResults(payload.getIssuesArray());
-      return new SearchPageResult(loadedCount, payload.getNextPageToken());
+      public SearchIdsPagePayload(List<String> issueIdsOrKeys, String nextPageToken) {
+         this.issueIdsOrKeys = issueIdsOrKeys;
+         this.nextPageToken = nextPageToken;
+      }
+
+      public List<String> getIssueIdsOrKeys() {
+         return issueIdsOrKeys;
+      }
+
+      public String getNextPageToken() {
+         return nextPageToken;
+      }
+    }
+
+   private SearchPageResult loadIssuesWithBulkFetch(String jql, int maxResults, String nextPageToken) throws Exception {
+      SearchIdsPagePayload idsPagePayload = searchIssueIdsJQL(jql, maxResults, nextPageToken);
+      int loadedCount = bulkFetchIssues(idsPagePayload.getIssueIdsOrKeys());
+      return new SearchPageResult(loadedCount, idsPagePayload.getNextPageToken());
    }
 
-   private SearchPagePayload searchIssuesV3Page(String jql, int maxResults, String nextPageToken) throws Exception {
+   private SearchIdsPagePayload searchIssueIdsJQL(String jql, int maxResults, String nextPageToken) throws Exception {
+      SearchPagePayload searchPagePayload = searchIssuesJQL(jql, maxResults, nextPageToken);
+      List<String> issueIdsOrKeys = new ArrayList<>();
+
+      JsonArray issuesArray = searchPagePayload.getIssuesArray();
+      if (issuesArray != null) {
+         for (JsonElement issueElement : issuesArray) {
+            if (issueElement == null || issueElement.isJsonNull()) {
+               continue;
+            }
+
+            JsonObject issueObject = issueElement.getAsJsonObject();
+            if (issueObject.has("id") && !issueObject.get("id").isJsonNull()) {
+               issueIdsOrKeys.add(issueObject.get("id").getAsString());
+            } else if (issueObject.has("key") && !issueObject.get("key").isJsonNull()) {
+               issueIdsOrKeys.add(issueObject.get("key").getAsString());
+            }
+         }
+      }
+
+      return new SearchIdsPagePayload(issueIdsOrKeys, searchPagePayload.getNextPageToken());
+   }
+
+   private int bulkFetchIssues(List<String> issueIdsOrKeys) throws Exception {
+      if (issueIdsOrKeys == null || issueIdsOrKeys.isEmpty()) {
+         return 0;
+      }
+
+      JsonObject requestBody = new JsonObject();
+      JsonArray idsOrKeysArray = new JsonArray();
+      for (String idOrKey : issueIdsOrKeys) {
+         if (idOrKey != null && !idOrKey.trim().isEmpty()) {
+            idsOrKeysArray.add(idOrKey);
+         }
+      }
+      requestBody.add("issueIdsOrKeys", idsOrKeysArray);
+      requestBody.add("fields", buildRequiredIssueFields());
+
+      HttpURLConnection connection = createConnection(restApiPath + "/issue/bulkfetch", configuredConnection -> {
+         try {
+            configuredConnection.setRequestMethod("POST");
+            configuredConnection.setDoOutput(true);
+            byte[] payload = requestBody.toString().getBytes(StandardCharsets.UTF_8);
+            configuredConnection.setRequestProperty("Content-Length", String.valueOf(payload.length));
+            try (OutputStream outputStream = configuredConnection.getOutputStream()) {
+               outputStream.write(payload);
+            }
+         } catch (IOException e) {
+            throw new RuntimeException(e);
+         }
+      });
+
+      try {
+         try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
+            JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
+            JsonArray issuesArray = jsonObject.getAsJsonArray("issues");
+            return loadIssuesFromSearchResults(issuesArray);
+         }
+      } finally {
+         connection.disconnect();
+      }
+   }
+
+   private JsonArray buildRequiredIssueFields() {
+      List<String> requiredFields = List.of(
+         "assignee",
+         "components",
+         "created",
+         "creator",
+         "description",
+         "issuetype",
+         "labels",
+         "reporter",
+         "resolution",
+         "status",
+         "summary",
+         "updated"
+      );
+
+      JsonArray fields = new JsonArray();
+      requiredFields.stream().sorted().collect(Collectors.toList()).forEach(fields::add);
+      return fields;
+   }
+
+   private SearchPagePayload searchIssuesJQL(String jql, int maxResults, String nextPageToken) throws Exception {
       JsonObject requestBody = new JsonObject();
       requestBody.addProperty("jql", jql);
       requestBody.addProperty("maxResults", maxResults);
 
       JsonArray fields = new JsonArray();
-      fields.add("*all");
+      fields.add("id");
       requestBody.add("fields", fields);
 
       // Handle blank/empty tokens: normalize to null to prevent infinite loops
@@ -327,7 +407,7 @@ public class JiraIssueManager implements IssueManager {
          requestBody.addProperty("nextPageToken", nextPageToken);
       }
 
-      HttpURLConnection connection = createConnection(getRestApiPath() + "/search/jql", configuredConnection -> {
+      HttpURLConnection connection = createConnection(restApiPath + "/search/jql", configuredConnection -> {
          try {
             configuredConnection.setRequestMethod("POST");
             configuredConnection.setDoOutput(true);
@@ -363,7 +443,7 @@ public class JiraIssueManager implements IssueManager {
       }
    }
 
-   private int loadIssuesV3SearchResults(JsonArray issuesArray) throws Exception {
+   private int loadIssuesFromSearchResults(JsonArray issuesArray) throws Exception {
       if (issuesArray == null || issuesArray.size() == 0) {
          return 0;
       }
@@ -393,7 +473,7 @@ public class JiraIssueManager implements IssueManager {
    private int loadIssues(String query, int start, int maxResults) throws Exception {
       int result = 0;
 
-      HttpURLConnection connection = createConnection(getRestApiPath() + "/search?fields=*all&maxResults=" + maxResults + "&startAt=" + start + query, null);
+      HttpURLConnection connection = createConnection(restApiPath + "/search?fields=*all&maxResults=" + maxResults + "&startAt=" + start + query, null);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
             JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
