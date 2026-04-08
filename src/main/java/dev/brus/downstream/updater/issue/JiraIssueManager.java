@@ -57,12 +57,10 @@ import org.slf4j.LoggerFactory;
 public class JiraIssueManager implements IssueManager {
    private final static Logger logger = LoggerFactory.getLogger(JiraIssueManager.class);
 
-   public final static String REST_API_PATH_V2 = "/rest/api/2";
-   public final static String REST_API_PATH_V3 = "/rest/api/3";
+   public final static String REST_API_PATH = "/rest/api/2";
    public final static String BROWSE_API_PATH = "/browse";
 
    private final boolean useOptimizedLoading;
-   private final String restApiPath;
 
    private final static String ISSUE_TYPE_BUG = "Bug";
 
@@ -132,29 +130,20 @@ public class JiraIssueManager implements IssueManager {
       return projectKey;
    }
 
-   public String getRestApiPath() {
-      return restApiPath;
-   }
-
    @Override
    public String getIssueBaseUrl() {
       return issueBaseUrl;
    }
 
    public JiraIssueManager(String serverURL, String authString, String projectKey) {
-      this(serverURL, authString, projectKey, false, REST_API_PATH_V2);
+      this(serverURL, authString, projectKey, false);
    }
 
    public JiraIssueManager(String serverURL, String authString, String projectKey, boolean useOptimizedLoading) {
-      this(serverURL, authString, projectKey, useOptimizedLoading, REST_API_PATH_V2);
-   }
-
-   public JiraIssueManager(String serverURL, String authString, String projectKey, boolean useOptimizedLoading, String restApiPath) {
       this.serverURL = serverURL;
       this.authString = authString;
       this.projectKey = projectKey;
       this.useOptimizedLoading = useOptimizedLoading;
-      this.restApiPath = restApiPath;
       this.issues = new HashMap<>();
 
       this.issueBaseUrl = serverURL + BROWSE_API_PATH;
@@ -203,7 +192,7 @@ public class JiraIssueManager implements IssueManager {
          JsonObject requestBody = new JsonObject();
          requestBody.addProperty("jql", jql);
 
-         HttpURLConnection searchConnection = createConnection(restApiPath + "/search/approximate-count", connection -> {
+         HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search/approximate-count", connection -> {
             try {
                connection.setRequestMethod("POST");
                connection.setDoOutput(true);
@@ -227,7 +216,7 @@ public class JiraIssueManager implements IssueManager {
          }
       } else {
          String query = "&jql=" + URLEncoder.encode(jql, StandardCharsets.UTF_8);
-         HttpURLConnection searchConnection = createConnection(restApiPath + "/search?maxResults=0" + query, null);
+         HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search?maxResults=0" + query, null);
          try {
             try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
                JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
@@ -347,7 +336,7 @@ public class JiraIssueManager implements IssueManager {
       requestBody.add("issueIdsOrKeys", idsOrKeysArray);
       requestBody.add("fields", buildRequiredIssueFields());
 
-      HttpURLConnection connection = createConnection(restApiPath + "/issue/bulkfetch", configuredConnection -> {
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/bulkfetch", configuredConnection -> {
          try {
             configuredConnection.setRequestMethod("POST");
             configuredConnection.setDoOutput(true);
@@ -407,7 +396,7 @@ public class JiraIssueManager implements IssueManager {
          requestBody.addProperty("nextPageToken", nextPageToken);
       }
 
-      HttpURLConnection connection = createConnection(restApiPath + "/search/jql", configuredConnection -> {
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/search/jql", configuredConnection -> {
          try {
             configuredConnection.setRequestMethod("POST");
             configuredConnection.setDoOutput(true);
@@ -473,7 +462,7 @@ public class JiraIssueManager implements IssueManager {
    private int loadIssues(String query, int start, int maxResults) throws Exception {
       int result = 0;
 
-      HttpURLConnection connection = createConnection(restApiPath + "/search?fields=*all&maxResults=" + maxResults + "&startAt=" + start + query, null);
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/search?fields=*all&maxResults=" + maxResults + "&startAt=" + start + query, null);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
             JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();

@@ -70,11 +70,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public RedHatJiraIssueManager(String serverURL, String authString, String projectKey, DownstreamIssueStateMachine issueStateMachine, IssueManager upstreamIssueManager) {
-      this(serverURL, authString, projectKey, issueStateMachine, upstreamIssueManager, REST_API_PATH_V2);
-   }
-
-   public RedHatJiraIssueManager(String serverURL, String authString, String projectKey, DownstreamIssueStateMachine issueStateMachine, IssueManager upstreamIssueManager, String restApiPath) {
-      super(serverURL, authString, projectKey, false, restApiPath);
+      super(serverURL, authString, projectKey, false);
 
       this.issueStateMachine = issueStateMachine;
       this.upstreamIssueManager = upstreamIssueManager;
@@ -147,7 +143,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private String postIssue(JsonObject issueObject) throws Exception {
-      HttpURLConnection connection = createConnection(getRestApiPath() + "/issue/", httpConnection -> {
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/", httpConnection -> {
          try {
             httpConnection.setDoOutput(true);
             httpConnection.setRequestMethod("POST");
@@ -316,7 +312,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       outwardIssue.addProperty("key", cloningIssueKey);
       issueLinkObject.add("outwardIssue", outwardIssue);
 
-      HttpURLConnection connection = createConnection(getRestApiPath() + "/issueLink", httpConnection -> {
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issueLink", httpConnection -> {
          try {
             httpConnection.setDoOutput(true);
             httpConnection.setRequestMethod("POST");
@@ -393,7 +389,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private void putIssue(String issueKey, JsonObject issueObject) throws Exception {
-      HttpURLConnection connection = createConnection(getRestApiPath() + "/issue/" + issueKey, httpConnection -> {
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey, httpConnection -> {
          try {
             httpConnection.setDoOutput(true);
             httpConnection.setRequestMethod("PUT");
@@ -437,7 +433,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public void transitionIssue(String issueKey, int transitionId) throws Exception {
-      HttpURLConnection connection = createConnection(getRestApiPath() + "/issue/" + issueKey + "/transitions", httpConnection -> {
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey + "/transitions", httpConnection -> {
          try {
             httpConnection.setDoOutput(true);
             httpConnection.setRequestMethod("POST");
@@ -454,7 +450,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    private JsonObject loadIssue(String issueKey) throws Exception {
-      HttpURLConnection connection = createConnection(getRestApiPath() + "/issue/" + issueKey, null);
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey, null);
       try {
          try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
             return JsonParser.parseReader(inputStreamReader).getAsJsonObject();
@@ -473,7 +469,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public IssueTransaction[] getIssueTransactions(String issueKey) throws Exception {
-      HttpURLConnection connection = createConnection(getRestApiPath() + "/issue/" + issueKey + "/transitions?expand=transitions.fields", null);
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/" + issueKey + "/transitions?expand=transitions.fields", null);
       try {
          List<IssueTransaction> issueTransactions = new ArrayList<>();
 
