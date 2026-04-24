@@ -2,6 +2,7 @@ package dev.brus.midstream.updater.issue;
 
 import java.io.InputStreamReader;
 import java.util.Collections;
+import java.util.Date;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -369,5 +370,85 @@ public class RedHatJiraIssueManagerTest {
       Assert.assertNotNull(transitionsIssueRecordedRequest.getBody());
 
       mockWebServer.shutdown();
+   }
+
+   @Test
+   public void testLoadingIssueWithBulkFetch() throws Exception {
+      MockWebServer mockWebServer = new MockWebServer();
+      mockWebServer.start();
+      
+      try {
+         // Response 1: approximate-count endpoint
+         String countResponse = "{\"count\": 1}";
+         mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .setBody(countResponse)
+            .addHeader("Content-Type", "application/json"));
+
+         // Response 2: search/jql endpoint (ID-only search)
+         String jqlSearchResponse = "{\"issues\": [{\"id\": \"123\"}], \"total\": 1}";
+         mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .setBody(jqlSearchResponse)
+            .addHeader("Content-Type", "application/json"));
+
+         // Response 3: bulkfetch endpoint
+         String bulkfetchResponse = "{\"issues\": [{" +
+            "\"key\": \"ENTMQBR-123\", " +
+            "\"fields\": {" +
+            "\"summary\": \"Test Issue\", " +
+            "\"status\": {\"name\": \"Open\"}, " +
+            "\"assignee\": {\"name\": \"user1\"}, " +
+            "\"created\": \"2024-01-01T00:00:00.000-0500\", " +
+            "\"updated\": \"2024-01-02T00:00:00.000-0500\", " +
+            "\"description\": \"Test description\", " +
+            "\"issuetype\": {\"name\": \"Bug\"}, " +
+            "\"reporter\": {\"name\": \"reporter1\"}, " +
+            "\"labels\": [], " +
+            "\"components\": [], " +
+            "\"resolution\": null, " +
+            "\"creator\": {\"name\": \"creator1\"}" +
+            "}}]}";
+         mockWebServer.enqueue(new MockResponse()
+            .setResponseCode(200)
+            .setBody(bulkfetchResponse)
+            .addHeader("Content-Type", "application/json"));
+
+
+         JiraIssueManager issueManager = new JiraIssueManager(
+            mockWebServer.url("rest/api/2").toString(), 
+            null, 
+            "ENTMQBR", 
+            true  // useOptimizedLoading = true
+         );
+
+         
+         Date lastUpdated = new Date(0);
+         issueManager.loadIssues(lastUpdated);
+
+     
+         RecordedRequest countRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(countRequest);
+         Assert.assertTrue(countRequest.getPath().contains("search/approximate-count"));
+
+
+         RecordedRequest jqlRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(jqlRequest);
+         Assert.assertTrue(jqlRequest.getPath().contains("search/jql"));
+         String jqlBody = jqlRequest.getBody().readUtf8();
+         Assert.assertTrue("Expected fields:[\"id\"] in search/jql request", 
+            jqlBody.contains("\"fields\"") && jqlBody.contains("\"id\""));
+
+  
+         RecordedRequest bulkfetchRequest = mockWebServer.takeRequest();
+         Assert.assertNotNull(bulkfetchRequest);
+         Assert.assertTrue(bulkfetchRequest.getPath().contains("issue/bulkfetch"));
+         String bulkfetchBody = bulkfetchRequest.getBody().readUtf8();
+         Assert.assertTrue("Expected issueIdsOrKeys in bulkfetch request", 
+            bulkfetchBody.contains("issueIdsOrKeys"));
+
+      } finally {
+         mockWebServer.shutdown();
+      }
    }
 }

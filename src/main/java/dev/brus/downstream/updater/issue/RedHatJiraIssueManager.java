@@ -70,7 +70,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public RedHatJiraIssueManager(String serverURL, String authString, String projectKey, DownstreamIssueStateMachine issueStateMachine, IssueManager upstreamIssueManager) {
-      super(serverURL, authString, projectKey);
+      super(serverURL, authString, projectKey, false);
 
       this.issueStateMachine = issueStateMachine;
       this.upstreamIssueManager = upstreamIssueManager;

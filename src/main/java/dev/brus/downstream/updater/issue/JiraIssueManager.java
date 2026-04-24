@@ -20,6 +20,7 @@ package dev.brus.downstream.updater.issue;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -35,12 +36,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -57,6 +60,8 @@ public class JiraIssueManager implements IssueManager {
 
    public final static String REST_API_PATH = "/rest/api/2";
    public final static String BROWSE_API_PATH = "/browse";
+
+   private final boolean useOptimizedLoading;
 
    private final static String ISSUE_TYPE_BUG = "Bug";
 
@@ -79,6 +84,41 @@ public class JiraIssueManager implements IssueManager {
 
    private final Pattern issueKeyPattern;
 
+   private static class SearchPagePayload {
+      private final JsonArray issuesArray;
+      private final String nextPageToken;
+
+      private SearchPagePayload(JsonArray issuesArray, String nextPageToken) {
+         this.issuesArray = issuesArray;
+         this.nextPageToken = nextPageToken;
+      }
+
+      public JsonArray getIssuesArray() {
+         return issuesArray;
+      }
+
+      public String getNextPageToken() {
+         return nextPageToken;
+      }
+   }
+   private static class SearchPageResult {
+      private final int loadedCount;
+      private final String nextPageToken;
+
+      private SearchPageResult(int loadedCount, String nextPageToken) {
+         this.loadedCount = loadedCount;
+         this.nextPageToken = nextPageToken;
+      }
+
+      public int getLoadedCount() {
+         return loadedCount;
+      }
+
+      public String getNextPageToken() {
+         return nextPageToken;
+      }
+   }
+
    public String getServerURL() {
       return serverURL;
    }
@@ -97,9 +137,14 @@ public class JiraIssueManager implements IssueManager {
    }
 
    public JiraIssueManager(String serverURL, String authString, String projectKey) {
+      this(serverURL, authString, projectKey, false);
+   }
+
+   public JiraIssueManager(String serverURL, String authString, String projectKey, boolean useOptimizedLoading) {
       this.serverURL = serverURL;
       this.authString = authString;
       this.projectKey = projectKey;
+      this.useOptimizedLoading = useOptimizedLoading;
       this.issues = new HashMap<>();
 
       this.issueBaseUrl = serverURL + BROWSE_API_PATH;
@@ -131,7 +176,7 @@ public class JiraIssueManager implements IssueManager {
       loadIssues((Date)null);
    }
 
-   private void loadIssues(Date lastUpdated) throws Exception {
+   public void loadIssues(Date lastUpdated) throws Exception {
       int total;
       final int MAX_RESULTS = 250;
 
@@ -142,47 +187,78 @@ public class JiraIssueManager implements IssueManager {
          calendar.add(Calendar.DATE, -1);
          lastUpdatedQuery = " AND updated >= '" + defaultQueryDateFormat.format(calendar.getTime()) + "'";
       }
-      String query = "&jql=" + URLEncoder.encode("project = '" + projectKey + "'" + lastUpdatedQuery, StandardCharsets.UTF_8);
-
-      HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search?maxResults=0" + query, null);
-      try {
-         try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
-            JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
-
-            total = jsonObject.getAsJsonPrimitive("total").getAsInt();
-         }
-      } finally {
-         searchConnection.disconnect();
-      }
-
-      int taskCount = (int)Math.ceil((double)total / (double)MAX_RESULTS);
-      List<Callable<Integer>> tasks = new ArrayList<>();
-
-      logger.info("Loading " + total + " issues with " + taskCount + "tasks");
-
-      for (int i = 0; i < taskCount; i++) {
-         final int start = i * MAX_RESULTS;
-         final int maxResults = i < taskCount - 1 ? MAX_RESULTS : total - start;
-
-         tasks.add(() -> loadIssues(query, start, maxResults));
-      }
+      String jql = "project = '" + projectKey + "'" + lastUpdatedQuery;
 
       int count = 0;
       long beginTimestamp = System.nanoTime();
 
-      ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-      try {
-          List<Future<Integer>> taskFutures = executorService.invokeAll(tasks);
-          long endTimestamp = System.nanoTime();
+      if (useOptimizedLoading) {
+         logger.info("Loading issues using sequential search + parallel fetch");
+         
+         // Get total count first (before starting the pipelined loading)
+         JsonObject requestBody = new JsonObject();
+         requestBody.addProperty("jql", jql);
 
-          for (Future<Integer> taskFuture : taskFutures) {
-              count += taskFuture.get();
-          }
+         HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search/approximate-count", connection -> {
+            try {
+               connection.setRequestMethod("POST");
+               connection.setDoOutput(true);
+               byte[] payload = requestBody.toString().getBytes(StandardCharsets.UTF_8);
+               connection.setRequestProperty("Content-Length", String.valueOf(payload.length));
+               try (OutputStream outputStream = connection.getOutputStream()) {
+                  outputStream.write(payload);
+               }
+            } catch (IOException e) {
+               throw new RuntimeException(e);
+            }
+         });
+         try {
+            try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
+               JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
+               total = jsonObject.getAsJsonPrimitive("count").getAsInt();
+            }
+         } finally {
+            searchConnection.disconnect();
+         }
+         
+         // Now start the pipelined loading
+         count = loadIssuesWithSequentialSearchParallelFetch(jql, MAX_RESULTS);
+      } else {
+         String query = "&jql=" + URLEncoder.encode(jql, StandardCharsets.UTF_8);
+         HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search?maxResults=0" + query, null);
+         try {
+            try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
+               JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
+               total = jsonObject.getAsJsonPrimitive("total").getAsInt();
+            }
+         } finally {
+            searchConnection.disconnect();
+         }
 
-          logger.info("Loaded " + count + "/" + total + " issues in " + (endTimestamp - beginTimestamp) / 1000000 + " milliseconds");
-      } finally {
-          executorService.shutdownNow();
+         int taskCount = (int)Math.ceil((double)total / (double)MAX_RESULTS);
+         List<Callable<Integer>> tasks = new ArrayList<>();
+
+         logger.info("Loading " + total + " issues with " + taskCount + " tasks");
+
+         for (int i = 0; i < taskCount; i++) {
+            final int start = i * MAX_RESULTS;
+            final int maxResults = i < taskCount - 1 ? MAX_RESULTS : total - start;
+            tasks.add(() -> loadIssues(query, start, maxResults));
+         }
+
+         ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+         try {
+            List<Future<Integer>> taskFutures = executorService.invokeAll(tasks);
+            for (Future<Integer> taskFuture : taskFutures) {
+               count += taskFuture.get();
+            }
+         } finally {
+            executorService.shutdown();
+         }
       }
+
+      long endTimestamp = System.nanoTime();
+      logger.info("Loaded " + count + "/" + total + " issues in " + (endTimestamp - beginTimestamp) / 1000000 + " milliseconds");
 
       int diff = total - count;
 
@@ -192,7 +268,237 @@ public class JiraIssueManager implements IssueManager {
          logger.warn("Error loading " + count + "/" + total + " issues");
       }
    }
+   // Pipelined loading approach for JQL search
+   private class SearchIdsPagePayload {
+      private final List<String> issueIdsOrKeys;
+      private final String nextPageToken;
 
+      public SearchIdsPagePayload(List<String> issueIdsOrKeys, String nextPageToken) {
+         this.issueIdsOrKeys = issueIdsOrKeys;
+         this.nextPageToken = nextPageToken;
+      }
+
+      public List<String> getIssueIdsOrKeys() {
+         return issueIdsOrKeys;
+      }
+
+      public String getNextPageToken() {
+         return nextPageToken;
+      }
+    }
+
+   private SearchPageResult loadIssuesWithBulkFetch(String jql, int maxResults, String nextPageToken) throws Exception {
+      SearchIdsPagePayload idsPagePayload = searchIssueIdsJQL(jql, maxResults, nextPageToken);
+      int loadedCount = bulkFetchIssues(idsPagePayload.getIssueIdsOrKeys());
+      return new SearchPageResult(loadedCount, idsPagePayload.getNextPageToken());
+   }
+
+   private SearchIdsPagePayload searchIssueIdsJQL(String jql, int maxResults, String nextPageToken) throws Exception {
+      SearchPagePayload searchPagePayload = searchIssuesJQL(jql, maxResults, nextPageToken);
+      List<String> issueIdsOrKeys = new ArrayList<>();
+
+      JsonArray issuesArray = searchPagePayload.getIssuesArray();
+      if (issuesArray != null) {
+         for (JsonElement issueElement : issuesArray) {
+            if (issueElement == null || issueElement.isJsonNull()) {
+               continue;
+            }
+
+            JsonObject issueObject = issueElement.getAsJsonObject();
+            if (issueObject.has("id") && !issueObject.get("id").isJsonNull()) {
+               issueIdsOrKeys.add(issueObject.get("id").getAsString());
+            } else if (issueObject.has("key") && !issueObject.get("key").isJsonNull()) {
+               issueIdsOrKeys.add(issueObject.get("key").getAsString());
+            }
+         }
+      }
+
+      return new SearchIdsPagePayload(issueIdsOrKeys, searchPagePayload.getNextPageToken());
+   }
+
+   private int bulkFetchIssues(List<String> issueIdsOrKeys) throws Exception {
+      if (issueIdsOrKeys == null || issueIdsOrKeys.isEmpty()) {
+         return 0;
+      }
+
+      JsonObject requestBody = new JsonObject();
+      JsonArray idsOrKeysArray = new JsonArray();
+      for (String idOrKey : issueIdsOrKeys) {
+         if (idOrKey != null && !idOrKey.trim().isEmpty()) {
+            idsOrKeysArray.add(idOrKey);
+         }
+      }
+      requestBody.add("issueIdsOrKeys", idsOrKeysArray);
+      requestBody.add("fields", buildRequiredIssueFields());
+
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/issue/bulkfetch", configuredConnection -> {
+         try {
+            configuredConnection.setRequestMethod("POST");
+            configuredConnection.setDoOutput(true);
+            byte[] payload = requestBody.toString().getBytes(StandardCharsets.UTF_8);
+            configuredConnection.setRequestProperty("Content-Length", String.valueOf(payload.length));
+            try (OutputStream outputStream = configuredConnection.getOutputStream()) {
+               outputStream.write(payload);
+            }
+         } catch (IOException e) {
+            throw new RuntimeException(e);
+         }
+      });
+
+      try {
+         try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
+            JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
+            JsonArray issuesArray = jsonObject.getAsJsonArray("issues");
+            return loadIssuesFromSearchResults(issuesArray);
+         }
+      } finally {
+         connection.disconnect();
+      }
+   }
+
+   private int loadIssuesWithSequentialSearchParallelFetch(String jql, int maxResults) throws Exception {
+  
+      int optimalThreads = Runtime.getRuntime().availableProcessors() * 3;
+      ExecutorService fetchExecutor = Executors.newFixedThreadPool(Math.min(optimalThreads, 50));
+      List<Future<Integer>> fetchFutures = new ArrayList<>();
+      
+      String nextPageToken = null;
+      int searchCount = 0;
+      
+      logger.info("Starting pipelined search and fetch");
+
+      do {
+         searchCount++;
+         logger.debug("Searching page " + searchCount);
+         
+        
+         SearchIdsPagePayload idsPagePayload = searchIssueIdsJQL(jql, maxResults, nextPageToken);
+         List<String> batchIds = idsPagePayload.getIssueIdsOrKeys();
+         nextPageToken = idsPagePayload.getNextPageToken();
+         
+ 
+         if (!batchIds.isEmpty()) {
+            logger.debug("Submitting fetch task for " + batchIds.size() + " issues from page " + searchCount);
+            Future<Integer> fetchFuture = fetchExecutor.submit(() -> bulkFetchIssues(batchIds));
+            fetchFutures.add(fetchFuture);
+         }
+         
+   
+      } while (nextPageToken != null);
+      
+      logger.info("Completed " + searchCount + " searches, waiting for " + fetchFutures.size() + " fetch tasks to complete");
+      
+  
+      int totalLoaded = 0;
+      try {
+         for (Future<Integer> future : fetchFutures) {
+            totalLoaded += future.get();
+         }
+      } finally {
+         fetchExecutor.shutdown();
+      }
+      
+      return totalLoaded;
+   }
+
+
+   private JsonArray buildRequiredIssueFields() {
+      List<String> requiredFields = List.of(
+         "assignee",
+         "components",
+         "created",
+         "creator",
+         "description",
+         "issuetype",
+         "labels",
+         "reporter",
+         "resolution",
+         "status",
+         "summary",
+         "updated"
+      );
+
+      JsonArray fields = new JsonArray();
+      requiredFields.stream().sorted().collect(Collectors.toList()).forEach(fields::add);
+      return fields;
+   }
+
+   private SearchPagePayload searchIssuesJQL(String jql, int maxResults, String nextPageToken) throws Exception {
+      JsonObject requestBody = new JsonObject();
+      requestBody.addProperty("jql", jql);
+      requestBody.addProperty("maxResults", maxResults);
+
+      JsonArray fields = new JsonArray();
+      fields.add("id");
+      requestBody.add("fields", fields);
+
+      // Handle blank/empty tokens: normalize to null to prevent infinite loops
+      if (nextPageToken != null && !nextPageToken.trim().isEmpty()) {
+         requestBody.addProperty("nextPageToken", nextPageToken);
+      }
+
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/search/jql", configuredConnection -> {
+         try {
+            configuredConnection.setRequestMethod("POST");
+            configuredConnection.setDoOutput(true);
+            byte[] payload = requestBody.toString().getBytes(StandardCharsets.UTF_8);
+            configuredConnection.setRequestProperty("Content-Length", String.valueOf(payload.length));
+            try (OutputStream outputStream = configuredConnection.getOutputStream()) {
+               outputStream.write(payload);
+            }
+         } catch (IOException e) {
+            throw new RuntimeException(e);
+         }
+      });
+
+      try {
+         try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
+            JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
+            JsonArray issuesArray = jsonObject.getAsJsonArray("issues");
+
+            String returnedNextPageToken = null;
+            JsonElement nextPageTokenElement = jsonObject.get("nextPageToken");
+            if (nextPageTokenElement != null && !nextPageTokenElement.isJsonNull()) {
+               String token = nextPageTokenElement.getAsString();
+               // Normalize empty tokens to null
+               if (token != null && !token.trim().isEmpty()) {
+                  returnedNextPageToken = token;
+               }
+            }
+
+            return new SearchPagePayload(issuesArray, returnedNextPageToken);
+         }
+      } finally {
+         connection.disconnect();
+      }
+   }
+
+   private int loadIssuesFromSearchResults(JsonArray issuesArray) throws Exception {
+      if (issuesArray == null || issuesArray.size() == 0) {
+         return 0;
+      }
+
+      int threadCount = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors(), issuesArray.size()));
+      ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+      try {
+         List<Callable<Issue>> tasks = new ArrayList<>(issuesArray.size());
+         for (JsonElement issueElement : issuesArray) {
+            JsonObject issueObject = issueElement.getAsJsonObject();
+            tasks.add(() -> parseIssue(issueObject, new SimpleDateFormat(dateFormatPattern)));
+         }
+
+         int loaded = 0;
+         List<Future<Issue>> futures = executor.invokeAll(tasks);
+         for (Future<Issue> future : futures) {
+            Issue issue = future.get();
+            issues.put(issue.getKey(), issue);
+            loaded++;
+         }
+         return loaded;
+      } finally {
+         executor.shutdown();
+      }
+   }
 
    private int loadIssues(String query, int start, int maxResults) throws Exception {
       int result = 0;
@@ -268,6 +574,32 @@ public class JiraIssueManager implements IssueManager {
       return issueKeys;
    }
 
+   private String parseUserId(JsonObject user) {
+      if (user == null || user.isJsonNull()) {
+         return null;
+      }
+      if (user.has("accountId") && !user.get("accountId").isJsonNull()) {
+         return user.get("accountId").getAsString();
+      } else if (user.has("name") && !user.get("name").isJsonNull()) {
+         return user.get("name").getAsString();
+      } else if (user.has("displayName") && !user.get("displayName").isJsonNull()) {
+         return user.get("displayName").getAsString();
+      } else {
+         return null;
+      }
+   }
+
+   private String parseIssueDescription(JsonElement descriptionElement) {
+      if (descriptionElement == null || descriptionElement.isJsonNull()) {
+         return null;
+      } else if (descriptionElement.isJsonPrimitive()) {
+         return descriptionElement.getAsString();
+      } else {
+         
+         return descriptionElement.toString();
+      }
+   }
+
    protected Issue parseIssue(JsonObject issueObject, DateFormat dateFormat) throws Exception {
       String issueKey = issueObject.getAsJsonPrimitive("key").getAsString();
       logger.debug("loading issue " + issueKey);
@@ -280,16 +612,15 @@ public class JiraIssueManager implements IssueManager {
 
       JsonElement issueAssigneeElement = issueFields.get("assignee");
       String issueAssignee = issueAssigneeElement != null && !issueAssigneeElement.isJsonNull() ?
-         issueFields.getAsJsonObject("assignee").getAsJsonPrimitive("name").getAsString() : null;
-      String issueCreator = issueFields.getAsJsonObject("creator").getAsJsonPrimitive("name").getAsString();
-      String issueReporter = issueFields.getAsJsonObject("reporter").getAsJsonPrimitive("name").getAsString();
+         parseUserId(issueFields.getAsJsonObject("assignee")) : null;
+      String issueCreator = parseUserId(issueFields.getAsJsonObject("creator"));
+      String issueReporter = parseUserId(issueFields.getAsJsonObject("reporter"));
       String issueStatus = issueFields.getAsJsonObject("status").getAsJsonPrimitive("name").getAsString();
       JsonElement issueResolutionElement = issueFields.get("resolution");
       String issueResolution = issueResolutionElement != null && !issueResolutionElement.isJsonNull() ?
          issueResolutionElement.getAsJsonObject().getAsJsonPrimitive("name").getAsString() : null;
       JsonElement issueDescriptionElement = issueFields.get("description");
-      String issueDescription = issueDescriptionElement == null || issueDescriptionElement.isJsonNull() ?
-         null : issueDescriptionElement.getAsString();
+      String issueDescription = parseIssueDescription(issueDescriptionElement);
       String issueType = issueFields.getAsJsonObject("issuetype").getAsJsonPrimitive("name").getAsString();
       String issueSummary = issueFields.getAsJsonPrimitive("summary").getAsString();
       Date issueCreated = dateFormat.parse(issueFields.getAsJsonPrimitive("created").getAsString());
