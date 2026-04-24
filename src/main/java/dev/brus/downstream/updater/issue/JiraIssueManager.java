@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -188,7 +189,13 @@ public class JiraIssueManager implements IssueManager {
       }
       String jql = "project = '" + projectKey + "'" + lastUpdatedQuery;
 
+      int count = 0;
+      long beginTimestamp = System.nanoTime();
+
       if (useOptimizedLoading) {
+         logger.info("Loading issues using sequential search + parallel fetch");
+         
+         // Get total count first (before starting the pipelined loading)
          JsonObject requestBody = new JsonObject();
          requestBody.addProperty("jql", jql);
 
@@ -208,12 +215,14 @@ public class JiraIssueManager implements IssueManager {
          try {
             try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
                JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
-
                total = jsonObject.getAsJsonPrimitive("count").getAsInt();
             }
          } finally {
             searchConnection.disconnect();
          }
+         
+         // Now start the pipelined loading
+         count = loadIssuesWithSequentialSearchParallelFetch(jql, MAX_RESULTS);
       } else {
          String query = "&jql=" + URLEncoder.encode(jql, StandardCharsets.UTF_8);
          HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search?maxResults=0" + query, null);
@@ -225,27 +234,12 @@ public class JiraIssueManager implements IssueManager {
          } finally {
             searchConnection.disconnect();
          }
-      }
 
-      int count = 0;
-      long beginTimestamp = System.nanoTime();
-
-      if (useOptimizedLoading) {
-         logger.info("Loading " + total + " issues using continuation token pagination");
-
-         String nextPageToken = null;
-         do {
-            SearchPageResult pageResult = loadIssuesWithBulkFetch(jql, MAX_RESULTS, nextPageToken);
-            count += pageResult.getLoadedCount();
-            nextPageToken = pageResult.getNextPageToken();
-         } while (nextPageToken != null);
-      } else {
          int taskCount = (int)Math.ceil((double)total / (double)MAX_RESULTS);
          List<Callable<Integer>> tasks = new ArrayList<>();
 
-         logger.info("Loading " + total + " issues with " + taskCount + "tasks");
+         logger.info("Loading " + total + " issues with " + taskCount + " tasks");
 
-         String query = "&jql=" + URLEncoder.encode(jql, StandardCharsets.UTF_8);
          for (int i = 0; i < taskCount; i++) {
             final int start = i * MAX_RESULTS;
             final int maxResults = i < taskCount - 1 ? MAX_RESULTS : total - start;
@@ -274,6 +268,7 @@ public class JiraIssueManager implements IssueManager {
          logger.warn("Error loading " + count + "/" + total + " issues");
       }
    }
+   // Pipelined loading approach for JQL search
    private class SearchIdsPagePayload {
       private final List<String> issueIdsOrKeys;
       private final String nextPageToken;
@@ -360,6 +355,52 @@ public class JiraIssueManager implements IssueManager {
          connection.disconnect();
       }
    }
+
+   private int loadIssuesWithSequentialSearchParallelFetch(String jql, int maxResults) throws Exception {
+  
+      int optimalThreads = Runtime.getRuntime().availableProcessors() * 3;
+      ExecutorService fetchExecutor = Executors.newFixedThreadPool(Math.min(optimalThreads, 50));
+      List<Future<Integer>> fetchFutures = new ArrayList<>();
+      
+      String nextPageToken = null;
+      int searchCount = 0;
+      
+      logger.info("Starting pipelined search and fetch");
+
+      do {
+         searchCount++;
+         logger.debug("Searching page " + searchCount);
+         
+        
+         SearchIdsPagePayload idsPagePayload = searchIssueIdsJQL(jql, maxResults, nextPageToken);
+         List<String> batchIds = idsPagePayload.getIssueIdsOrKeys();
+         nextPageToken = idsPagePayload.getNextPageToken();
+         
+ 
+         if (!batchIds.isEmpty()) {
+            logger.debug("Submitting fetch task for " + batchIds.size() + " issues from page " + searchCount);
+            Future<Integer> fetchFuture = fetchExecutor.submit(() -> bulkFetchIssues(batchIds));
+            fetchFutures.add(fetchFuture);
+         }
+         
+   
+      } while (nextPageToken != null);
+      
+      logger.info("Completed " + searchCount + " searches, waiting for " + fetchFutures.size() + " fetch tasks to complete");
+      
+  
+      int totalLoaded = 0;
+      try {
+         for (Future<Integer> future : fetchFutures) {
+            totalLoaded += future.get();
+         }
+      } finally {
+         fetchExecutor.shutdown();
+      }
+      
+      return totalLoaded;
+   }
+
 
    private JsonArray buildRequiredIssueFields() {
       List<String> requiredFields = List.of(
@@ -554,7 +595,7 @@ public class JiraIssueManager implements IssueManager {
       } else if (descriptionElement.isJsonPrimitive()) {
          return descriptionElement.getAsString();
       } else {
-         // Jira Cloud may return Atlassian Document Format objects.
+         
          return descriptionElement.toString();
       }
    }
