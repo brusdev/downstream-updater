@@ -77,6 +77,24 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    @Override
+   protected JsonArray buildRequiredIssueFields() {
+      // Get base fields from parent
+      JsonArray fields = super.buildRequiredIssueFields();
+      
+      // Add Red Hat specific custom fields
+      fields.add(TARGET_RELEASE_FIELD);           // customfield_12311240 - Target Release
+      fields.add(UPSTREAM_JIRA_FIELD);            // customfield_12314640 - Upstream Jira
+      fields.add("customfield_12312340");         // GSS Priority
+      fields.add("customfield_12310120");         // Help Desk Ticket Reference
+      fields.add("customfield_12310021");         // Support Case Reference
+      fields.add("customfield_12313441");         // SFDC Cases Links
+      fields.add("customfield_12313440");         // SFDC Cases Counter
+      fields.add("customfield_12311640");         // Security Sensitive Issue
+      
+      return fields;
+   }
+
+   @Override
    public String getIssueTypeBug() {
       return ISSUE_TYPE_BUG;
    }

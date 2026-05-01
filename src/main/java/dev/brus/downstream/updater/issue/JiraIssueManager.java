@@ -416,7 +416,7 @@ public class JiraIssueManager implements IssueManager {
    }
 
 
-   private JsonArray buildRequiredIssueFields() {
+   protected JsonArray buildRequiredIssueFields() {
       List<String> requiredFields = List.of(
          "assignee",
          "components",

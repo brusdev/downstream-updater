@@ -451,4 +451,99 @@ public class RedHatJiraIssueManagerTest {
          mockWebServer.shutdown();
       }
    }
+
+   /**
+    * Performance comparison test for pipelined vs sequential loading.
+    *
+    * This test is @Ignore by default as it requires real JIRA credentials.
+    * To run: Remove @Ignore annotation and configure JIRA credentials below.
+    */
+   @org.junit.Ignore("Requires real JIRA credentials - enable manually for performance testing")
+   @Test
+   public void testPerformanceComparison() throws Exception {
+      // Configure these for your JIRA instance
+      final String JIRA_SERVER_URL = "https://issues.apache.org/jira";
+      final String JIRA_AUTH_STRING = ""; // Base64 encoded "username:password" or API token
+      final String PROJECT_KEY = "ARTEMIS";
+      
+      System.out.println("\n" + "=".repeat(70));
+      System.out.println("PERFORMANCE COMPARISON TEST");
+      System.out.println("=".repeat(70));
+      
+      // Test 1: Non-Optimized (Parallel Search+Fetch)
+      System.out.println("\n[1/2] Testing Non-Optimized Approach (Parallel Search+Fetch)...");
+      JiraIssueManager nonOptimizedManager = new JiraIssueManager(
+         JIRA_SERVER_URL,
+         JIRA_AUTH_STRING,
+         PROJECT_KEY,
+         false  // useOptimizedLoading = false
+      );
+      
+      long nonOptimizedStart = System.currentTimeMillis();
+      nonOptimizedManager.loadIssues();
+      long nonOptimizedEnd = System.currentTimeMillis();
+      long nonOptimizedDuration = nonOptimizedEnd - nonOptimizedStart;
+      int nonOptimizedCount = nonOptimizedManager.getIssues().size();
+      
+      System.out.println("✓ Non-Optimized completed in " + nonOptimizedDuration + " ms");
+      
+      // Wait between tests
+      System.out.println("\nWaiting 2 seconds before next test...");
+      Thread.sleep(2000);
+      
+      // Test 2: Optimized (Pipelined Sequential Search + Parallel Fetch)
+      System.out.println("\n[2/2] Testing Optimized Pipelined Approach...");
+      JiraIssueManager optimizedManager = new JiraIssueManager(
+         JIRA_SERVER_URL,
+         JIRA_AUTH_STRING,
+         PROJECT_KEY,
+         true  // useOptimizedLoading = true (pipelined)
+      );
+      
+      long optimizedStart = System.currentTimeMillis();
+      optimizedManager.loadIssues();
+      long optimizedEnd = System.currentTimeMillis();
+      long optimizedDuration = optimizedEnd - optimizedStart;
+      int optimizedCount = optimizedManager.getIssues().size();
+      
+      System.out.println("✓ Optimized completed in " + optimizedDuration + " ms");
+      
+      // Calculate improvement
+      double improvement = ((nonOptimizedDuration - optimizedDuration) / (double) nonOptimizedDuration) * 100;
+      double speedup = nonOptimizedDuration / (double) optimizedDuration;
+      
+      // Print comparison
+      System.out.println("\n" + "=".repeat(70));
+      System.out.println("COMPARISON RESULTS");
+      System.out.println("=".repeat(70));
+      
+      System.out.println("\nNon-Optimized Approach:");
+      System.out.println("  Issues loaded: " + nonOptimizedCount);
+      System.out.println("  Total time: " + nonOptimizedDuration + " ms");
+      System.out.println("  Throughput: " + String.format("%.2f", nonOptimizedCount * 1000.0 / nonOptimizedDuration) + " issues/sec");
+      
+      System.out.println("\nOptimized Pipelined Approach:");
+      System.out.println("  Issues loaded: " + optimizedCount);
+      System.out.println("  Total time: " + optimizedDuration + " ms");
+      System.out.println("  Throughput: " + String.format("%.2f", optimizedCount * 1000.0 / optimizedDuration) + " issues/sec");
+      
+      System.out.println("\nPerformance Improvement:");
+      System.out.println("  Time saved: " + (nonOptimizedDuration - optimizedDuration) + " ms");
+      System.out.println("  Improvement: " + String.format("%.1f", improvement) + "%");
+      System.out.println("  Speedup: " + String.format("%.2f", speedup) + "x faster");
+      
+      if (improvement > 0) {
+         System.out.println("\n✓ Pipelined approach is FASTER!");
+      } else {
+         System.out.println("\n✗ Non-optimized approach was faster (unexpected)");
+      }
+      
+      System.out.println("\n" + "=".repeat(70));
+      
+      // Assertions
+      Assert.assertEquals("Both approaches should load same number of issues", 
+         nonOptimizedCount, optimizedCount);
+      Assert.assertTrue("Pipelined approach should be faster",
+         optimizedDuration < nonOptimizedDuration);
+   }
 }
