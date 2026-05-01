@@ -87,10 +87,12 @@ public class JiraIssueManager implements IssueManager {
    private static class SearchPagePayload {
       private final JsonArray issuesArray;
       private final String nextPageToken;
+      private final Integer total;
 
-      private SearchPagePayload(JsonArray issuesArray, String nextPageToken) {
+      private SearchPagePayload(JsonArray issuesArray, String nextPageToken, Integer total) {
          this.issuesArray = issuesArray;
          this.nextPageToken = nextPageToken;
+         this.total = total;
       }
 
       public JsonArray getIssuesArray() {
@@ -99,6 +101,10 @@ public class JiraIssueManager implements IssueManager {
 
       public String getNextPageToken() {
          return nextPageToken;
+      }
+
+      public Integer getTotal() {
+         return total;
       }
    }
    private static class SearchPageResult {
@@ -195,34 +201,10 @@ public class JiraIssueManager implements IssueManager {
       if (useOptimizedLoading) {
          logger.info("Loading issues using sequential search + parallel fetch");
          
-         // Get total count first (before starting the pipelined loading)
-         JsonObject requestBody = new JsonObject();
-         requestBody.addProperty("jql", jql);
-
-         HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search/approximate-count", connection -> {
-            try {
-               connection.setRequestMethod("POST");
-               connection.setDoOutput(true);
-               byte[] payload = requestBody.toString().getBytes(StandardCharsets.UTF_8);
-               connection.setRequestProperty("Content-Length", String.valueOf(payload.length));
-               try (OutputStream outputStream = connection.getOutputStream()) {
-                  outputStream.write(payload);
-               }
-            } catch (IOException e) {
-               throw new RuntimeException(e);
-            }
-         });
-         try {
-            try (InputStreamReader inputStreamReader = new InputStreamReader(searchConnection.getInputStream())) {
-               JsonObject jsonObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
-               total = jsonObject.getAsJsonPrimitive("count").getAsInt();
-            }
-         } finally {
-            searchConnection.disconnect();
-         }
-         
-         // Now start the pipelined loading
-         count = loadIssuesWithSequentialSearchParallelFetch(jql, MAX_RESULTS);
+         // Start the pipelined loading (gets total from first search/jql response)
+         PipelinedLoadResult result = loadIssuesWithSequentialSearchParallelFetch(jql, MAX_RESULTS);
+         count = result.getLoadedCount();
+         total = result.getTotal();
       } else {
          String query = "&jql=" + URLEncoder.encode(jql, StandardCharsets.UTF_8);
          HttpURLConnection searchConnection = createConnection(REST_API_PATH + "/search?maxResults=0" + query, null);
@@ -272,10 +254,12 @@ public class JiraIssueManager implements IssueManager {
    private class SearchIdsPagePayload {
       private final List<String> issueIdsOrKeys;
       private final String nextPageToken;
+      private final Integer total;
 
-      public SearchIdsPagePayload(List<String> issueIdsOrKeys, String nextPageToken) {
+      public SearchIdsPagePayload(List<String> issueIdsOrKeys, String nextPageToken, Integer total) {
          this.issueIdsOrKeys = issueIdsOrKeys;
          this.nextPageToken = nextPageToken;
+         this.total = total;
       }
 
       public List<String> getIssueIdsOrKeys() {
@@ -285,7 +269,29 @@ public class JiraIssueManager implements IssueManager {
       public String getNextPageToken() {
          return nextPageToken;
       }
+
+      public Integer getTotal() {
+         return total;
+      }
     }
+
+   private static class PipelinedLoadResult {
+      private final int loadedCount;
+      private final int total;
+
+      public PipelinedLoadResult(int loadedCount, int total) {
+         this.loadedCount = loadedCount;
+         this.total = total;
+      }
+
+      public int getLoadedCount() {
+         return loadedCount;
+      }
+
+      public int getTotal() {
+         return total;
+      }
+   }
 
    private SearchPageResult loadIssuesWithBulkFetch(String jql, int maxResults, String nextPageToken) throws Exception {
       SearchIdsPagePayload idsPagePayload = searchIssueIdsJQL(jql, maxResults, nextPageToken);
@@ -313,7 +319,7 @@ public class JiraIssueManager implements IssueManager {
          }
       }
 
-      return new SearchIdsPagePayload(issueIdsOrKeys, searchPagePayload.getNextPageToken());
+      return new SearchIdsPagePayload(issueIdsOrKeys, searchPagePayload.getNextPageToken(), searchPagePayload.getTotal());
    }
 
    private int bulkFetchIssues(List<String> issueIdsOrKeys) throws Exception {
@@ -356,14 +362,15 @@ public class JiraIssueManager implements IssueManager {
       }
    }
 
-   private int loadIssuesWithSequentialSearchParallelFetch(String jql, int maxResults) throws Exception {
-  
+   private PipelinedLoadResult loadIssuesWithSequentialSearchParallelFetch(String jql, int maxResults) throws Exception {
+   
       int optimalThreads = Runtime.getRuntime().availableProcessors() * 3;
       ExecutorService fetchExecutor = Executors.newFixedThreadPool(Math.min(optimalThreads, 50));
       List<Future<Integer>> fetchFutures = new ArrayList<>();
       
       String nextPageToken = null;
       int searchCount = 0;
+      Integer totalFromFirstPage = null;
       
       logger.info("Starting pipelined search and fetch");
 
@@ -376,6 +383,10 @@ public class JiraIssueManager implements IssueManager {
          List<String> batchIds = idsPagePayload.getIssueIdsOrKeys();
          nextPageToken = idsPagePayload.getNextPageToken();
          
+         // Capture total from first page
+         if (searchCount == 1 && idsPagePayload.getTotal() != null) {
+            totalFromFirstPage = idsPagePayload.getTotal();
+         }
  
          if (!batchIds.isEmpty()) {
             logger.debug("Submitting fetch task for " + batchIds.size() + " issues from page " + searchCount);
@@ -398,7 +409,10 @@ public class JiraIssueManager implements IssueManager {
          fetchExecutor.shutdown();
       }
       
-      return totalLoaded;
+      // Use total from first page, or fall back to loaded count if not available
+      int finalTotal = (totalFromFirstPage != null) ? totalFromFirstPage : totalLoaded;
+      
+      return new PipelinedLoadResult(totalLoaded, finalTotal);
    }
 
 
@@ -466,7 +480,14 @@ public class JiraIssueManager implements IssueManager {
                }
             }
 
-            return new SearchPagePayload(issuesArray, returnedNextPageToken);
+            // Extract total count from response (only present in first page)
+            Integer total = null;
+            JsonElement totalElement = jsonObject.get("total");
+            if (totalElement != null && !totalElement.isJsonNull()) {
+               total = totalElement.getAsInt();
+            }
+
+            return new SearchPagePayload(issuesArray, returnedNextPageToken, total);
          }
       } finally {
          connection.disconnect();
