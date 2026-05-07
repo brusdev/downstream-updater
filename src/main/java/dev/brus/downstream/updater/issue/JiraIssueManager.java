@@ -383,7 +383,6 @@ public class JiraIssueManager implements IssueManager {
          List<String> batchIds = idsPagePayload.getIssueIdsOrKeys();
          nextPageToken = idsPagePayload.getNextPageToken();
          
-         // Capture total from first page
          if (searchCount == 1 && idsPagePayload.getTotal() != null) {
             totalFromFirstPage = idsPagePayload.getTotal();
          }
