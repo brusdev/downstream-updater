@@ -70,7 +70,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
 
    public RedHatJiraIssueManager(String serverURL, String authString, String projectKey, DownstreamIssueStateMachine issueStateMachine, IssueManager upstreamIssueManager) {
-      super(serverURL, authString, projectKey, false);
+      super(serverURL, authString, projectKey, true);  
 
       this.issueStateMachine = issueStateMachine;
       this.upstreamIssueManager = upstreamIssueManager;
@@ -78,7 +78,6 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
 
    @Override
    protected JsonArray buildRequiredIssueFields() {
-      // Get base fields from parent
       JsonArray fields = super.buildRequiredIssueFields();
       
       // Add Red Hat specific custom fields
