@@ -293,12 +293,6 @@ public class JiraIssueManager implements IssueManager {
       }
    }
 
-   private SearchPageResult loadIssuesWithBulkFetch(String jql, int maxResults, String nextPageToken) throws Exception {
-      SearchIdsPagePayload idsPagePayload = searchIssueIdsJQL(jql, maxResults, nextPageToken);
-      int loadedCount = bulkFetchIssues(idsPagePayload.getIssueIdsOrKeys());
-      return new SearchPageResult(loadedCount, idsPagePayload.getNextPageToken());
-   }
-
    private SearchIdsPagePayload searchIssueIdsJQL(String jql, int maxResults, String nextPageToken) throws Exception {
       SearchPagePayload searchPagePayload = searchIssuesJQL(jql, maxResults, nextPageToken);
       List<String> issueIdsOrKeys = new ArrayList<>();
