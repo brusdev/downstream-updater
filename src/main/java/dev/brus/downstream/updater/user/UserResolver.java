@@ -69,6 +69,18 @@ public class UserResolver {
       return null;
    }
 
+   public User getUserFromDownstreamUserId(String userId) {
+      if (userId == null) {
+         return null;
+      }
+      for (User user : users) {
+         if (user.getDownstreamUserId() != null && userId.equals(user.getDownstreamUserId())) {
+            return user;
+         }
+      }
+      return null;
+   }
+
    public User getUserFromEmailAddress(String emailAddress) {
       for (User user : users) {
          for (String userEmailAddress : user.getEmailAddresses()) {

@@ -1204,17 +1204,17 @@ public class CommitProcessor {
 
       if (downstreamIssues != null) {
          for (Issue downstreamIssue : downstreamIssues) {
-            user = userResolver.getUserFromDownstreamUsername(downstreamIssue.getAssignee());
+            user = userResolver.getUserFromDownstreamUserId(downstreamIssue.getAssignee());
             if (user != null) {
                return user;
             }
 
-            user = userResolver.getUserFromDownstreamUsername(downstreamIssue.getReporter());
+            user = userResolver.getUserFromDownstreamUserId(downstreamIssue.getReporter());
             if (user != null) {
                return user;
             }
 
-            user = userResolver.getUserFromDownstreamUsername(downstreamIssue.getCreator());
+            user = userResolver.getUserFromDownstreamUserId(downstreamIssue.getCreator());
             if (user != null) {
                return user;
             }
