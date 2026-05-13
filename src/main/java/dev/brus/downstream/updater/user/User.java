@@ -22,6 +22,7 @@ public class User {
    private String username;
    private String upstreamUsername;
    private String downstreamUsername;
+   private String downstreamUserId; 
    private String[] emailAddresses;
 
    public String getName() {
@@ -57,6 +58,15 @@ public class User {
 
    public User setDownstreamUsername(String downstreamUsername) {
       this.downstreamUsername = downstreamUsername;
+      return this;
+   }
+
+   public String getDownstreamUserId() {
+      return downstreamUserId;
+   }
+
+   public User setDownstreamUserId(String downstreamUserId) {
+      this.downstreamUserId = downstreamUserId;
       return this;
    }
 
