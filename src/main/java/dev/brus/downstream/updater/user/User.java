@@ -22,7 +22,7 @@ public class User {
    private String username;
    private String upstreamUsername;
    private String downstreamUsername;
-   private String downstreamUserId; 
+   private String downstreamUserId;
    private String[] emailAddresses;
 
    public String getName() {
