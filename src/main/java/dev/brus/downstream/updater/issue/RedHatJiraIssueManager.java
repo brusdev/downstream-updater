@@ -513,6 +513,11 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
          connection.disconnect();
       }
    }
+   
+   @Override
+   protected String parseUserId(JsonObject userObject) {
+      return userObject.getAsJsonPrimitive("accountId").getAsString();
+   }
 
    @Override
    protected Issue parseIssue(JsonObject issueObject, DateFormat dateFormat) throws Exception {

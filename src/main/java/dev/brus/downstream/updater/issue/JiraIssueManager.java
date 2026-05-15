@@ -588,7 +588,7 @@ public class JiraIssueManager implements IssueManager {
       return issueKeys;
    }
 
-   private String parseUserId(JsonObject user) {
+   protected String parseUserId(JsonObject user) {
       if (user == null || user.isJsonNull()) {
          return null;
       }
@@ -623,7 +623,7 @@ public class JiraIssueManager implements IssueManager {
       }
 
       JsonObject issueFields = issueObject.getAsJsonObject("fields");
-
+      
       JsonElement issueAssigneeElement = issueFields.get("assignee");
       String issueAssignee = issueAssigneeElement != null && !issueAssigneeElement.isJsonNull() ?
          parseUserId(issueFields.getAsJsonObject("assignee")) : null;
