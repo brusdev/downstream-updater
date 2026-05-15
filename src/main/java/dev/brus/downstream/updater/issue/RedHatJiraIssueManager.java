@@ -515,7 +515,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    }
    
    @Override
-   protected String parseUserId(JsonObject userObject) {
+   public String parseUserId(JsonObject userObject) {
       if (userObject == null || userObject.isJsonNull()) {
          return null;
       }
