@@ -592,12 +592,8 @@ public class JiraIssueManager implements IssueManager {
       if (user == null || user.isJsonNull()) {
          return null;
       }
-      if (user.has("accountId") && !user.get("accountId").isJsonNull()) {
-         return user.get("accountId").getAsString();
-      } else if (user.has("name") && !user.get("name").isJsonNull()) {
+      if (user.has("name") && !user.get("name").isJsonNull()) {
          return user.get("name").getAsString();
-      } else if (user.has("displayName") && !user.get("displayName").isJsonNull()) {
-         return user.get("displayName").getAsString();
       } else {
          return null;
       }
