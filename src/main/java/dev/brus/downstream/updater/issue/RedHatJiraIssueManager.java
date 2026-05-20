@@ -519,8 +519,13 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       if (userObject == null || userObject.isJsonNull()) {
          return null;
       }
-      if (userObject.has("accountId") && !userObject.get("accountId").isJsonNull()) {
-         return userObject.getAsJsonPrimitive("accountId").getAsString();
+      if (userObject.has("accountId") && 
+      !userObject.get("accountId").isJsonNull()) {
+         return 
+      userObject.getAsJsonPrimitive("accountId").getAsString();
+      }
+      if (userObject.has("name") && !userObject.get("name").isJsonNull()) {
+         return userObject.get("name").getAsString();
       }
       return null;
    }
