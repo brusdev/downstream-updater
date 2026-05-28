@@ -12,7 +12,7 @@ public class IssueManagerFactory {
    }
 
    public DownstreamIssueManager getDownstreamIssueManager(String serverURL, String authString, String projectKey, IssueManager upstreamIssueManager) {
-      if (serverURL.contains("issues.redhat.com")) {
+      if (serverURL.contains("redhat.atlassian.net")) {
          return new RedHatJiraIssueManager(serverURL, authString, projectKey, new RedHatIssueStateMachine(), upstreamIssueManager);
       } else {
          throw new IllegalArgumentException("Issue server URL not supported: " + serverURL);
