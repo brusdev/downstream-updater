@@ -202,7 +202,7 @@ public class JiraIssueManager implements IssueManager {
          logger.info("Loading issues using sequential search + parallel fetch");
          
          // Start the pipelined loading (gets total from first search/jql response)
-         PipelinedLoadResult result = loadIssuesWithSequentialSearchParallelFetch(jql, MAX_RESULTS);
+         PipelinedLoadResult result = loadIssuesWithSequentialSearchParallelFetch(jql, 100);
          count = result.getLoadedCount();
          total = result.getTotal();
       } else {
@@ -409,7 +409,7 @@ public class JiraIssueManager implements IssueManager {
    }
 
 
-   protected JsonArray buildRequiredIssueFields() {
+   protected JsonArray buildRequiredIssueFields() throws Exception {
       List<String> requiredFields = List.of(
          "assignee",
          "components",
@@ -434,10 +434,6 @@ public class JiraIssueManager implements IssueManager {
       JsonObject requestBody = new JsonObject();
       requestBody.addProperty("jql", jql);
       requestBody.addProperty("maxResults", maxResults);
-
-      JsonArray fields = new JsonArray();
-      fields.add("id");
-      requestBody.add("fields", fields);
 
       // Handle blank/empty tokens: normalize to null to prevent infinite loops
       if (nextPageToken != null && !nextPageToken.trim().isEmpty()) {
