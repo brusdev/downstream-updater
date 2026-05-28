@@ -305,6 +305,7 @@ public class App {
       File upstreamIssuesFile = new File(targetDir, downstreamRepositoryBaseName + "-upstream-issues.json");
       IssueManager upstreamIssueManager = issueManagerFactory.getIssueManager(
          upstreamIssuesServerURL, upstreamIssuesAuthString, upstreamIssuesProjectKey);
+      upstreamIssueManager.load();
       if (upstreamIssuesFile.exists()) {
          upstreamIssueManager.loadIssues( upstreamIssuesFile);
 
@@ -314,17 +315,20 @@ public class App {
       } else {
          upstreamIssueManager.loadIssues();
       }
+      upstreamIssueManager.storeIssues(upstreamIssuesFile);
 
 
       // Load downstream issues
       File downstreamIssuesFile = new File(targetDir, downstreamRepositoryBaseName + "-downstream-issues.json");
       DownstreamIssueManager downstreamIssueManager = issueManagerFactory.getDownstreamIssueManager(
          downstreamIssuesServerURL, downstreamIssuesAuthString, downstreamIssuesProjectKey, upstreamIssueManager);
+      downstreamIssueManager.load();
       if (downstreamIssuesFile.exists()) {
          downstreamIssueManager.loadIssues(downstreamIssuesFile);
       } else {
          downstreamIssueManager.loadIssues();
       }
+      downstreamIssueManager.storeIssues(downstreamIssuesFile);
 
       // Link upstream issues
       for (Issue issue : downstreamIssueManager.getIssues()) {

@@ -69,6 +69,11 @@ public class GithubIssueManager implements IssueManager {
    private Pattern issueKeyPattern;
 
    @Override
+   public void load() throws Exception {
+
+   }
+
+   @Override
    public String getServerURL() {
       return serverURL;
    }

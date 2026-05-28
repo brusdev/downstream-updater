@@ -23,6 +23,8 @@ import java.util.List;
 
 public interface IssueManager {
 
+   void load() throws Exception;
+
    String getServerURL();
 
    String getAuthString();
