@@ -25,11 +25,13 @@ import java.net.HttpURLConnection;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -40,13 +42,30 @@ import org.slf4j.LoggerFactory;
 public class RedHatJiraIssueManager extends JiraIssueManager implements DownstreamIssueManager {
    private final static Logger logger = LoggerFactory.getLogger(RedHatJiraIssueManager.class);
 
-   //"id":"customfield_12311240","name":"Target Release"
-   private final static String TARGET_RELEASE_FIELD = "customfield_12311240";
+   // Red Hat issue fields
+   public final static String FIELD_TARGET_RELEASE = "Target Release";
+   public final static String FIELD_UPSTREAM_JIRA = "Upstream Jira";
+   public final static String FIELD_GSS_PRIORITY = "GSS Priority";
+   public final static String FIELD_HELP_DESK_TICKET_REFERENCE = "Help Desk Ticket Reference";
+   public final static String FIELD_SUPPORT_CASE_REFERENCE = "Support Case Reference";
+   public final static String FIELD_SFDC_CASES_LINKS = "SFDC Cases Links";
+   public final static String FIELD_SFDC_CASES_COUNTER = "SFDC Cases Counter";
+   public final static String FIELD_SEVERITY = "Severity";
 
-   //"id":"customfield_12314640","name":"Upstream Jira"
-   private final static String UPSTREAM_JIRA_FIELD = "customfield_12314640";
+   public final static Set<String> FIELDS = Set.of(
+      FIELD_TARGET_RELEASE,
+      FIELD_UPSTREAM_JIRA,
+      FIELD_GSS_PRIORITY,
+      FIELD_HELP_DESK_TICKET_REFERENCE,
+      FIELD_SUPPORT_CASE_REFERENCE,
+      FIELD_SFDC_CASES_LINKS,
+      FIELD_SFDC_CASES_COUNTER,
+      FIELD_SEVERITY
+   );
+
 
    private final static String ISSUE_TYPE_BUG = "Bug";
+   private final static String ISSUE_TYPE_VULNERABILITY = "Vulnerability";
 
    private static final String ISSUE_RESOLUTION_DONE = "Done";
    private static final String ISSUE_RESOLUTION_DUPLICATE = "Duplicate";
@@ -57,40 +76,65 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
 
    private final static Pattern securityImpactPattern = Pattern.compile("Impact: (Critical|Important|Moderate|Low)");
 
-   private final static String dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
-
-   private Gson gson = new GsonBuilder().setDateFormat(dateFormat).setPrettyPrinting().create();
-
    private DownstreamIssueStateMachine issueStateMachine;
 
    private IssueManager upstreamIssueManager;
+
+   private Map<String, String> fields;
 
    public DownstreamIssueStateMachine getIssueStateMachine() {
       return issueStateMachine;
    }
 
    public RedHatJiraIssueManager(String serverURL, String authString, String projectKey, DownstreamIssueStateMachine issueStateMachine, IssueManager upstreamIssueManager) {
-      super(serverURL, authString, projectKey, true);  
+      super(serverURL, authString, projectKey, true);
 
       this.issueStateMachine = issueStateMachine;
       this.upstreamIssueManager = upstreamIssueManager;
    }
 
    @Override
-   protected JsonArray buildRequiredIssueFields() {
-      JsonArray fields = super.buildRequiredIssueFields();
-      
-      // Add Red Hat specific custom fields
-      fields.add(TARGET_RELEASE_FIELD);           // customfield_12311240 - Target Release
-      fields.add(UPSTREAM_JIRA_FIELD);            // customfield_12314640 - Upstream Jira
-      fields.add("customfield_12312340");         // GSS Priority
-      fields.add("customfield_12310120");         // Help Desk Ticket Reference
-      fields.add("customfield_12310021");         // Support Case Reference
-      fields.add("customfield_12313441");         // SFDC Cases Links
-      fields.add("customfield_12313440");         // SFDC Cases Counter
-      fields.add("customfield_12311640");         // Security Sensitive Issue
-      
-      return fields;
+   public void load() throws Exception {
+      loadFields();
+   }
+
+   private void loadFields() throws Exception {
+      Map<String, String> loadedFields = new ConcurrentHashMap<>();
+      HttpURLConnection connection = createConnection(REST_API_PATH + "/field", null);
+      try {
+         try (InputStreamReader inputStreamReader = new InputStreamReader(connection.getInputStream())) {
+            JsonArray fieldsArray = JsonParser.parseReader(inputStreamReader).getAsJsonArray();
+
+            for (JsonElement fieldElement : fieldsArray) {
+               JsonObject fieldObject = fieldElement.getAsJsonObject();
+               String fieldName = fieldObject.getAsJsonPrimitive("name").getAsString();
+               if (FIELDS.contains(fieldName)) {
+                  String fieldId = fieldObject.getAsJsonPrimitive("id").getAsString();
+                  loadedFields.put(fieldName, fieldId);
+               }
+            }
+         }
+
+         FIELDS.forEach(fieldName -> Objects.requireNonNull(
+            loadedFields.get(fieldName), "Field " + fieldName + " not loaded"));
+
+         fields = loadedFields;
+      } finally {
+         connection.disconnect();
+      }
+   }
+
+   public String getFieldIdByName(String name) throws Exception {
+      return fields.get(name);
+   }
+
+   @Override
+   protected JsonArray buildRequiredIssueFields() throws Exception {
+      JsonArray requiredIssueFields = super.buildRequiredIssueFields();
+
+      fields.forEach((key, value) -> requiredIssueFields.add(value));
+
+      return requiredIssueFields;
    }
 
    @Override
@@ -138,7 +182,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
          //fieldsObject.addProperty(UPSTREAM_ISSUE_FIELD, upstreamIssue);
          JsonObject targetReleaseObject = new JsonObject();
          targetReleaseObject.addProperty("name", targetRelease);
-         fieldsObject.add(TARGET_RELEASE_FIELD, targetReleaseObject);
+         fieldsObject.add(getFieldIdByName(FIELD_TARGET_RELEASE), targetReleaseObject);
          JsonObject assigneeObject = new JsonObject();
          assigneeObject.addProperty("name", assignee);
          fieldsObject.add("assignee", assigneeObject);
@@ -239,7 +283,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
 
       JsonObject issueObject = loadIssue(issueKey);
       JsonObject issueFields = issueObject.getAsJsonObject("fields");
-      JsonElement currentUpstreamJiraField = issueFields.get(UPSTREAM_JIRA_FIELD);
+      JsonElement currentUpstreamJiraField = issueFields.get(getFieldIdByName(FIELD_UPSTREAM_JIRA));
       if (currentUpstreamJiraField != null && !currentUpstreamJiraField.isJsonNull()) {
          String currentUpstreamJiraFieldValue = currentUpstreamJiraField.getAsString();
 
@@ -271,7 +315,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
          JsonObject updatingIssueObject = new JsonObject();
          {
             JsonObject updatingFieldsObject = new JsonObject();
-            updatingFieldsObject.addProperty(UPSTREAM_JIRA_FIELD, newUpstreamJiraFieldValue.toString());
+            updatingFieldsObject.addProperty(getFieldIdByName(FIELD_UPSTREAM_JIRA), newUpstreamJiraFieldValue.toString());
             updatingIssueObject.add("fields", updatingFieldsObject);
          }
 
@@ -292,7 +336,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
    public void copyIssueUpstreamIssues(String fromIssueKey, String toIssueKey) throws Exception {
       JsonObject issueObject = loadIssue(fromIssueKey);
       JsonObject issueFields = issueObject.getAsJsonObject("fields");
-      JsonElement upstreamJiraField = issueFields.get(UPSTREAM_JIRA_FIELD);
+      JsonElement upstreamJiraField = issueFields.get(getFieldIdByName(FIELD_UPSTREAM_JIRA));
       String upstreamJiraFieldValue = "";
       if (upstreamJiraField != null && !upstreamJiraField.isJsonNull()) {
          upstreamJiraFieldValue = upstreamJiraField.getAsString();
@@ -301,7 +345,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       JsonObject updatingIssueObject = new JsonObject();
       {
          JsonObject updatingFieldsObject = new JsonObject();
-         updatingFieldsObject.addProperty(UPSTREAM_JIRA_FIELD, upstreamJiraFieldValue);
+         updatingFieldsObject.addProperty(getFieldIdByName(FIELD_UPSTREAM_JIRA), upstreamJiraFieldValue);
          updatingIssueObject.add("fields", updatingFieldsObject);
       }
 
@@ -378,7 +422,7 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
          JsonObject updatingFieldsObject = new JsonObject();
          JsonObject targetReleaseObject = new JsonObject();
          targetReleaseObject.addProperty("name", targetRelease);
-         updatingFieldsObject.add("customfield_12311240", targetReleaseObject);
+         updatingFieldsObject.add(getFieldIdByName(FIELD_TARGET_RELEASE), targetReleaseObject);
          updatingIssueObject.add("fields", updatingFieldsObject);
       }
 
@@ -531,12 +575,12 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
 
       JsonObject issueFields = issueObject.getAsJsonObject("fields");
 
-      for (String upstreamIssueKey : parseUpstreamIssues(issueFields.get(UPSTREAM_JIRA_FIELD))) {
+      for (String upstreamIssueKey : parseUpstreamIssues(issueFields.get(getFieldIdByName(FIELD_UPSTREAM_JIRA)))) {
          logger.debug("linking issue " + upstreamIssueKey);
          issue.getIssues().add(upstreamIssueKey);
       }
 
-      JsonElement targetReleaseElement = issueFields.get(TARGET_RELEASE_FIELD);
+      JsonElement targetReleaseElement = issueFields.get(getFieldIdByName(FIELD_TARGET_RELEASE));
       if (targetReleaseElement != null && !targetReleaseElement.isJsonNull()) {
          issue.setTargetRelease(targetReleaseElement.getAsJsonObject().get("name").getAsString());
       }
@@ -544,32 +588,39 @@ public class RedHatJiraIssueManager extends JiraIssueManager implements Downstre
       JsonElement linksElement = issueFields.get("issuelinks");
       issue.setPatch(linksElement != null && !linksElement.isJsonNull() && linksElement.toString().matches(".*PATCH-[0-9]+.*"));
 
-      //"id":"customfield_12312340","name":"GSS Priority"
-      //"id":"customfield_12310120","name":"Help Desk Ticket Reference"
-      //"id":"customfield_12310021","name":"Support Case Reference"
-      //"id":"customfield_12313441","name":"SFDC Cases Links"
-      //"id":"customfield_12313440","name":"SFDC Cases Counter"
-      JsonElement gssPriorityElement = issueFields.get("customfield_12312340");
-      JsonElement helpDeskTicketReferenceElement = issueFields.get("customfield_12310120");
-      JsonElement supportCaseReferenceElement = issueFields.get("customfield_12310021");
-      JsonElement sfdcCasesLinksElement = issueFields.get("customfield_12313441");
-      JsonElement sfdcCasesCounterElement = issueFields.get("customfield_12313440");
+      JsonElement gssPriorityElement = issueFields.get(getFieldIdByName(FIELD_GSS_PRIORITY));
+      JsonElement helpDeskTicketReferenceElement = issueFields.get(getFieldIdByName(FIELD_HELP_DESK_TICKET_REFERENCE));
+      JsonElement supportCaseReferenceElement = issueFields.get(getFieldIdByName(FIELD_SUPPORT_CASE_REFERENCE));
+      JsonElement sfdcCasesLinksElement = issueFields.get(getFieldIdByName(FIELD_SFDC_CASES_LINKS));
+      JsonElement sfdcCasesCounterElement = issueFields.get(getFieldIdByName(FIELD_SFDC_CASES_COUNTER));
       issue.setCustomer(issue.isPatch() || (gssPriorityElement != null && !gssPriorityElement.isJsonNull()) ||
          (helpDeskTicketReferenceElement != null && !helpDeskTicketReferenceElement.isJsonNull()) ||
          (supportCaseReferenceElement != null && !supportCaseReferenceElement.isJsonNull()) ||
          (sfdcCasesLinksElement != null && !sfdcCasesLinksElement.isJsonNull()) ||
          (sfdcCasesCounterElement != null && !sfdcCasesCounterElement.isJsonNull()));
-      issue.setCustomerPriority(gssPriorityElement != null && !gssPriorityElement.isJsonNull() ? IssueCustomerPriority.fromName(
-         gssPriorityElement.getAsJsonObject().get("value").getAsString()) : null);
+      if (gssPriorityElement != null && !gssPriorityElement.isJsonNull()) {
+         if (gssPriorityElement.isJsonObject()) {
+            issue.setCustomerPriority(IssueCustomerPriority.fromName(
+               gssPriorityElement.getAsJsonObject().get("value").getAsString()));
+         } else {
+            issue.setCustomerPriority(IssueCustomerPriority.fromValue(
+               gssPriorityElement.getAsString()));
+         }
+      }
 
-      //"id":"customfield_12311640","name":"Security Sensitive Issue"
-      JsonElement securitySensitiveIssueElement = issueFields.get("customfield_12311640");
-      issue.setSecurity(securitySensitiveIssueElement != null && !securitySensitiveIssueElement.isJsonNull());
-      if (issue.getDescription() != null && issue.getDescription().startsWith("Security Tracking Issue")) {
+
+      if (ISSUE_TYPE_BUG.equals(issue.getType()) && issue.getDescription() != null && issue.getDescription().startsWith("Security Tracking Issue")) {
+         issue.setSecurity(true);
+
          Matcher securityImpactMatcher = securityImpactPattern.matcher(issue.getDescription());
          if (securityImpactMatcher.find()) {
             issue.setSecurityImpact(IssueSecurityImpact.fromName(securityImpactMatcher.group(1)));
          }
+      } else if (ISSUE_TYPE_VULNERABILITY.equals(issue.getType())) {
+         JsonElement severityElement = issueFields.get(getFieldIdByName(FIELD_SEVERITY));
+         issue.setSecurityImpact(IssueSecurityImpact.fromName(
+            severityElement != null && !severityElement.isJsonNull() ?
+            severityElement.getAsJsonObject().get("value").getAsString() : null));
       }
 
       issue.setDocumentation(issue.getSummary().startsWith("[Docs]") ||

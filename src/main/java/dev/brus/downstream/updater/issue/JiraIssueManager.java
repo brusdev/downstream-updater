@@ -125,6 +125,11 @@ public class JiraIssueManager implements IssueManager {
       }
    }
 
+   @Override
+   public void load() throws Exception {
+
+   }
+
    public String getServerURL() {
       return serverURL;
    }
