@@ -3,6 +3,7 @@ package dev.brus.midstream.updater.issue;
 import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Objects;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -45,12 +46,27 @@ public class RedHatJiraIssueManagerTest {
       RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
          null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
 
+      JsonArray fieldResponse = new JsonArray();
+      {
+         RedHatJiraIssueManager.FIELDS.forEach(fieldName -> {
+            JsonObject fieldObject = new JsonObject();
+            fieldObject.addProperty("id", fieldName);
+            fieldObject.addProperty("name", fieldName);
+            fieldResponse.add(fieldObject);
+         });
+      }
+      mockWebServer.enqueue(new MockResponse()
+         .addHeader("Content-Type", "application/json; charset=utf-8")
+         .setBody(fieldResponse.toString()));
+
+      issueManager.load();
+
       String downstreamIssueKey = "ENTMQBR-100";
       JsonObject downstreamIssueObject = new JsonObject();
       {
          downstreamIssueObject.addProperty("key", downstreamIssueKey);
          JsonObject fieldsObject = new JsonObject();
-         fieldsObject.addProperty("customfield_12314640", upstreamIssueKey0);
+         fieldsObject.addProperty(issueManager.getFieldIdByName(RedHatJiraIssueManager.FIELD_UPSTREAM_JIRA), upstreamIssueKey0);
          downstreamIssueObject.add("fields", fieldsObject);
       }
       mockWebServer.enqueue(new MockResponse()
@@ -60,6 +76,9 @@ public class RedHatJiraIssueManagerTest {
       mockWebServer.enqueue(new MockResponse());
 
       issueManager.addIssueUpstreamIssues(downstreamIssueKey, upstreamIssueKey1);
+
+      RecordedRequest fieldRequest = mockWebServer.takeRequest();
+      Assert.assertNotNull(fieldRequest.getBody());
 
       RecordedRequest loadIssueRecordedRequest = mockWebServer.takeRequest();
       Assert.assertNotNull(loadIssueRecordedRequest.getBody());
@@ -71,7 +90,7 @@ public class RedHatJiraIssueManagerTest {
          JsonObject issueObject = JsonParser.parseReader(inputStreamReader).getAsJsonObject();
 
          JsonObject issueFields = issueObject.getAsJsonObject("fields");
-         JsonElement upstreamJiraField = issueFields.get("customfield_12314640");
+         JsonElement upstreamJiraField = issueFields.get(issueManager.getFieldIdByName(RedHatJiraIssueManager.FIELD_UPSTREAM_JIRA));
          String upstreamJiraFieldValue = upstreamJiraField.getAsString();
          Assert.assertTrue(upstreamJiraFieldValue.contains(upstreamIssueUrl0 + ", " + upstreamIssueUrl1));
       }
@@ -90,6 +109,21 @@ public class RedHatJiraIssueManagerTest {
 
       RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
          null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
+
+      JsonArray fieldResponse = new JsonArray();
+      {
+         RedHatJiraIssueManager.FIELDS.forEach(fieldName -> {
+            JsonObject fieldObject = new JsonObject();
+            fieldObject.addProperty("id", fieldName);
+            fieldObject.addProperty("name", fieldName);
+            fieldResponse.add(fieldObject);
+         });
+      }
+      mockWebServer.enqueue(new MockResponse()
+         .addHeader("Content-Type", "application/json; charset=utf-8")
+         .setBody(fieldResponse.toString()));
+
+      issueManager.load();
 
       String downstreamIssueKey = "ENTMQBR-100";
       JsonObject createReponseDownstreamIssueObject = new JsonObject();
@@ -213,6 +247,21 @@ public class RedHatJiraIssueManagerTest {
       RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
          null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
 
+      JsonArray fieldResponse = new JsonArray();
+      {
+         RedHatJiraIssueManager.FIELDS.forEach(fieldName -> {
+            JsonObject fieldObject = new JsonObject();
+            fieldObject.addProperty("id", fieldName);
+            fieldObject.addProperty("name", fieldName);
+            fieldResponse.add(fieldObject);
+         });
+      }
+      mockWebServer.enqueue(new MockResponse()
+         .addHeader("Content-Type", "application/json; charset=utf-8")
+         .setBody(fieldResponse.toString()));
+
+      issueManager.load();
+
       String downstreamIssueKey = "ENTMQBR-100";
       
       // Response 1: search/jql returns issue ID
@@ -280,6 +329,10 @@ public class RedHatJiraIssueManagerTest {
       Assert.assertNotNull(issue);
       Assert.assertTrue(issue.isDocumentation());
 
+      RecordedRequest fieldRequest = mockWebServer.takeRequest();
+      Assert.assertNotNull(fieldRequest);
+      Assert.assertTrue("Should call search/jql endpoint", fieldRequest.getPath().contains("field"));
+
       RecordedRequest jqlRequest = mockWebServer.takeRequest();
       Assert.assertNotNull(jqlRequest);
       Assert.assertTrue(jqlRequest.getPath().contains("search/jql"));
@@ -302,7 +355,21 @@ public class RedHatJiraIssueManagerTest {
       RedHatJiraIssueManager issueManager = new RedHatJiraIssueManager(mockWebServer.url("rest/api/2").toString(),
          null, "ENTMQBR", new RedHatIssueStateMachine(), upstreamIssueManager);
 
-     
+      JsonArray fieldResponse = new JsonArray();
+      {
+         RedHatJiraIssueManager.FIELDS.forEach(fieldName -> {
+            JsonObject fieldObject = new JsonObject();
+            fieldObject.addProperty("id", fieldName);
+            fieldObject.addProperty("name", fieldName);
+            fieldResponse.add(fieldObject);
+         });
+      }
+      mockWebServer.enqueue(new MockResponse()
+         .addHeader("Content-Type", "application/json; charset=utf-8")
+         .setBody(fieldResponse.toString()));
+
+      issueManager.load();
+
       JsonObject jqlSearchResponse = new JsonObject();
       {
          JsonArray issuesArray = new JsonArray();
@@ -377,6 +444,10 @@ public class RedHatJiraIssueManagerTest {
       Assert.assertNotNull("Issue ENTMQBR-103 should exist", issue3);
       Assert.assertEquals("Test Issue 3", issue3.getSummary());
 
+
+      RecordedRequest fieldRequest = mockWebServer.takeRequest();
+      Assert.assertNotNull(fieldRequest);
+      Assert.assertTrue("Should call search/jql endpoint", fieldRequest.getPath().contains("field"));
 
       RecordedRequest jqlRequest = mockWebServer.takeRequest();
       Assert.assertNotNull(jqlRequest);
