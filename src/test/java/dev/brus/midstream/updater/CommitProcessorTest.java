@@ -105,7 +105,7 @@ public class CommitProcessorTest {
          .setName(TEST_USER_NAME)
          .setUsername(TEST_USER_NAME)
          .setUpstreamUsername(TEST_USER_NAME)
-         .setDownstreamUsername(TEST_USER_NAME)
+         .setDownstreamUserId(TEST_USER_NAME)
          .setEmailAddresses(new String[] {TEST_USER_EMAIL});
 
       project = new Project();
