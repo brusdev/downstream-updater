@@ -25,11 +25,11 @@ public enum IssueCustomerPriority {
    URGENT,
    NONE;
 
-   private static final String SCHEDULED_VALUE = "FjFI4vRDXIGtYHewzEzZdU1dgdwkKuaL1kpsV+8qs4VkM69Q08g3azY9gWeoEMzDERoIT30mTRjYQim9j5WlsA==";
-   private static final String LOW_VALUE = "FjFI4vRDXIGtYHewzEzZdUHDacvqZz7pekO+Hnpzcze6vqvOzEYh5Uj0dJZw+YCxmadTIQSKIHMcnEWoJLyp1w==";
-   private static final String MEDIUM_VALUE = "FjFI4vRDXIGtYHewzEzZdb6IxEVHUNEINgDkDdO4AwBzgalldVn46GYLZSUiLV1o2yxsXEXLux6YXHFlOy3Wxg==";
-   private static final String HIGH_VALUE = "FjFI4vRDXIGtYHewzEzZdcUDPvFtqjnYfpSayidPxjL7eU6jjw1f+AQLiyxKj9hyblHKYFjSEXUFHCdp+WYWzg==";
-   private static final String URGENT_VALUE = "FjFI4vRDXIGtYHewzEzZdTBVm8yCrS9g/ezwGxGLzXULcq3nw5aAoUJyA7kioImDBX+ewWMMYhCbOtyhe/yGSQ==";
+   private static final String SCHEDULED_VALUE = "rfv1:k1:029013018015014031022015:FjFI4vRDXIGtYHewzEzZdU1dgdwkKuaL1kpsV+8qs4VkM69Q08g3azY9gWeoEMzDERoIT30mTRjYQim9j5WlsA==";
+   private static final String LOW_VALUE = "rfv1:k1:022025033000000000000000:FjFI4vRDXIGtYHewzEzZdUHDacvqZz7pekO+Hnpzcze6vqvOzEYh5Uj0dJZw+YCxmadTIQSKIHMcnEWoJLyp1w==";
+   private static final String MEDIUM_VALUE = "rfv1:k1:023015014019031023000000:FjFI4vRDXIGtYHewzEzZdb6IxEVHUNEINgDkDdO4AwBzgalldVn46GYLZSUiLV1o2yxsXEXLux6YXHFlOy3Wxg==";
+   private static final String HIGH_VALUE = "rfv1:k1:018019017018000000000000:FjFI4vRDXIGtYHewzEzZdcUDPvFtqjnYfpSayidPxjL7eU6jjw1f+AQLiyxKj9hyblHKYFjSEXUFHCdp+WYWzg==";
+   private static final String URGENT_VALUE = "rfv1:k1:031028017015024030000000:FjFI4vRDXIGtYHewzEzZdTBVm8yCrS9g/ezwGxGLzXULcq3nw5aAoUJyA7kioImDBX+ewWMMYhCbOtyhe/yGSQ==";
 
    public static IssueCustomerPriority fromName(String name) {
       if (name == null) {
