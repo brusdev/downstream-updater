@@ -924,8 +924,7 @@ public class CommitProcessor {
          return null;
       }
 
-      return command.replace("${HOSTNAME}", InetAddress.getLocalHost().getHostName())
-         .replace("${HOSTIP}", InetAddress.getLocalHost().getHostAddress())
+      return command.replace("${HOSTIP}", InetAddress.getLocalHost().getHostAddress())
          .replace("${TEST}", String.join(",", commit.getTests()));
    }
 
