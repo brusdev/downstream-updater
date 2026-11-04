@@ -1202,6 +1202,18 @@ public class CommitProcessor {
    public User getAssignee(GitCommit upstreamCommit, List<Issue> upstreamIssues, List<Issue> downstreamIssues) {
       User user;
 
+      if (upstreamCommit != null) {
+         user = userResolver.getUserFromEmailAddress(upstreamCommit.getAuthorEmail());
+         if (user != null) {
+            return user;
+         }
+
+         user = userResolver.getUserFromEmailAddress(upstreamCommit.getCommitterEmail());
+         if (user != null) {
+            return user;
+         }
+      }
+
       if (downstreamIssues != null) {
          for (Issue downstreamIssue : downstreamIssues) {
             user = userResolver.getUserFromDownstreamUserId(downstreamIssue.getAssignee());
@@ -1238,16 +1250,6 @@ public class CommitProcessor {
                return user;
             }
          }
-      }
-
-      user = userResolver.getUserFromEmailAddress(upstreamCommit.getAuthorEmail());
-      if (user != null) {
-         return user;
-      }
-
-      user = userResolver.getUserFromEmailAddress(upstreamCommit.getCommitterEmail());
-      if (user != null) {
-         return user;
       }
 
       return userResolver.getDefaultUser();

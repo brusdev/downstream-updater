@@ -1227,4 +1227,77 @@ public class CommitProcessorTest {
       Assert.assertEquals(Commit.State.SKIPPED, commit.getState());
       Assert.assertEquals("DOWNSTREAM_ISSUES_WITH_NEXT_TARGET_RELEASE_EXIST", commit.getReason());
    }
+
+   @Test
+   public void testGetAssigneePrioritizesCommitAuthor() {
+      User authorUser = new User()
+         .setName("Author")
+         .setUsername("author")
+         .setUpstreamUsername("author")
+         .setDownstreamUserId("author")
+         .setEmailAddresses(new String[] {"author@example.com"});
+
+      User downstreamUser = new User()
+         .setName("Downstream Assignee")
+         .setUsername("downstream")
+         .setUpstreamUsername("downstream")
+         .setDownstreamUserId("down-user")
+         .setEmailAddresses(new String[] {"downstream@example.com"});
+
+      User upstreamUser = new User()
+         .setName("Upstream Assignee")
+         .setUsername("upstream")
+         .setUpstreamUsername("up-user")
+         .setDownstreamUserId("upstream")
+         .setEmailAddresses(new String[] {"upstream@example.com"});
+
+      User defaultUser = new User()
+         .setName("Default")
+         .setUsername("default")
+         .setUpstreamUsername("default")
+         .setDownstreamUserId("default")
+         .setEmailAddresses(new String[] {"default@example.com"});
+
+      UserResolver resolver = new UserResolver(new User[] {authorUser, downstreamUser, upstreamUser, defaultUser})
+         .setDefaultUser(defaultUser);
+
+      CommitProcessor commitProcessor = new CommitProcessor(
+         releaseVersion,
+         TARGET_RELEASE_FORMAT,
+         projectConfig, CURRENT_PROJECT_STREAM_NAME,
+         gitRepository,
+         upstreamIssueManager,
+         downstreamIssueManager,
+         resolver);
+
+      MockGitCommit commitWithAuthor = new MockGitCommit().setAuthorEmail("author@example.com");
+      Issue downstreamIssue = new Issue().setAssignee("down-user");
+      Issue upstreamIssue = new Issue().setAssignee("up-user");
+
+      // 1. Author email is prioritized over downstream and upstream issues
+      User assignee = commitProcessor.getAssignee(commitWithAuthor, Collections.singletonList(upstreamIssue), Collections.singletonList(downstreamIssue));
+      Assert.assertEquals(authorUser, assignee);
+
+      // 2. Committer email is prioritized if author is unknown
+      MockGitCommit commitWithCommitter = new MockGitCommit().setAuthorEmail("unknown@example.com").setCommitterEmail("author@example.com");
+      assignee = commitProcessor.getAssignee(commitWithCommitter, Collections.singletonList(upstreamIssue), Collections.singletonList(downstreamIssue));
+      Assert.assertEquals(authorUser, assignee);
+
+      // 3. Fallback to downstream issue when commit author/committer unknown
+      MockGitCommit commitWithUnknownAuthor = new MockGitCommit().setAuthorEmail("unknown@example.com").setCommitterEmail("unknown2@example.com");
+      assignee = commitProcessor.getAssignee(commitWithUnknownAuthor, Collections.singletonList(upstreamIssue), Collections.singletonList(downstreamIssue));
+      Assert.assertEquals(downstreamUser, assignee);
+
+      // 4. Fallback to upstream issue when downstream issue has no match
+      assignee = commitProcessor.getAssignee(commitWithUnknownAuthor, Collections.singletonList(upstreamIssue), null);
+      Assert.assertEquals(upstreamUser, assignee);
+
+      // 5. Fallback to default user when neither commit nor issues match
+      assignee = commitProcessor.getAssignee(commitWithUnknownAuthor, null, null);
+      Assert.assertEquals(defaultUser, assignee);
+
+      // 6. Gracefully handle null upstreamCommit
+      assignee = commitProcessor.getAssignee(null, null, null);
+      Assert.assertEquals(defaultUser, assignee);
+   }
 }
