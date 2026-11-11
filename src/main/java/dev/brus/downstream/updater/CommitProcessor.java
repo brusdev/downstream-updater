@@ -1201,6 +1201,15 @@ public class CommitProcessor {
    public User getAssignee(GitCommit upstreamCommit, List<Issue> upstreamIssues, List<Issue> downstreamIssues) {
       User user;
 
+      if (downstreamIssues != null) {
+         for (Issue downstreamIssue : downstreamIssues) {
+            user = userResolver.getUserFromDownstreamUserId(downstreamIssue.getAssignee());
+            if (user != null) {
+               return user;
+            }
+         }
+      }
+
       if (upstreamCommit != null) {
          user = userResolver.getUserFromEmailAddress(upstreamCommit.getAuthorEmail());
          if (user != null) {
@@ -1213,38 +1222,9 @@ public class CommitProcessor {
          }
       }
 
-      if (downstreamIssues != null) {
-         for (Issue downstreamIssue : downstreamIssues) {
-            user = userResolver.getUserFromDownstreamUserId(downstreamIssue.getAssignee());
-            if (user != null) {
-               return user;
-            }
-
-            user = userResolver.getUserFromDownstreamUserId(downstreamIssue.getReporter());
-            if (user != null) {
-               return user;
-            }
-
-            user = userResolver.getUserFromDownstreamUserId(downstreamIssue.getCreator());
-            if (user != null) {
-               return user;
-            }
-         }
-      }
-
       if (upstreamIssues != null) {
          for (Issue upstreamIssue : upstreamIssues) {
             user = userResolver.getUserFromUpstreamUsername(upstreamIssue.getAssignee());
-            if (user != null) {
-               return user;
-            }
-
-            user = userResolver.getUserFromUpstreamUsername(upstreamIssue.getReporter());
-            if (user != null) {
-               return user;
-            }
-
-            user = userResolver.getUserFromUpstreamUsername(upstreamIssue.getCreator());
             if (user != null) {
                return user;
             }

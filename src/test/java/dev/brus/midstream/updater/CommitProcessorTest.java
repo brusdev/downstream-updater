@@ -1229,7 +1229,7 @@ public class CommitProcessorTest {
    }
 
    @Test
-   public void testGetAssigneePrioritizesCommitAuthor() {
+   public void testGetAssigneePrioritizesDownstreamIssueAssignee() {
       User authorUser = new User()
          .setName("Author")
          .setUsername("author")
@@ -1274,23 +1274,32 @@ public class CommitProcessorTest {
       Issue downstreamIssue = new Issue().setAssignee("down-user");
       Issue upstreamIssue = new Issue().setAssignee("up-user");
 
-      // 1. Author email is prioritized over downstream and upstream issues
+      // 1. Downstream issue assignee is prioritized over commit author and upstream issues
       User assignee = commitProcessor.getAssignee(commitWithAuthor, Collections.singletonList(upstreamIssue), Collections.singletonList(downstreamIssue));
-      Assert.assertEquals(authorUser, assignee);
-
-      // 2. Committer email is prioritized if author is unknown
-      MockGitCommit commitWithCommitter = new MockGitCommit().setAuthorEmail("unknown@example.com").setCommitterEmail("author@example.com");
-      assignee = commitProcessor.getAssignee(commitWithCommitter, Collections.singletonList(upstreamIssue), Collections.singletonList(downstreamIssue));
-      Assert.assertEquals(authorUser, assignee);
-
-      // 3. Fallback to downstream issue when commit author/committer unknown
-      MockGitCommit commitWithUnknownAuthor = new MockGitCommit().setAuthorEmail("unknown@example.com").setCommitterEmail("unknown2@example.com");
-      assignee = commitProcessor.getAssignee(commitWithUnknownAuthor, Collections.singletonList(upstreamIssue), Collections.singletonList(downstreamIssue));
       Assert.assertEquals(downstreamUser, assignee);
 
-      // 4. Fallback to upstream issue when downstream issue has no match
+      // 2. Author email is used when downstream issues have no matching assignee
+      Issue downstreamIssueWithUnknownAssignee = new Issue().setAssignee("unknown-user");
+      assignee = commitProcessor.getAssignee(commitWithAuthor, Collections.singletonList(upstreamIssue), Collections.singletonList(downstreamIssueWithUnknownAssignee));
+      Assert.assertEquals(authorUser, assignee);
+
+      assignee = commitProcessor.getAssignee(commitWithAuthor, Collections.singletonList(upstreamIssue), null);
+      Assert.assertEquals(authorUser, assignee);
+
+      // 3. Committer email is used if author is unknown
+      MockGitCommit commitWithCommitter = new MockGitCommit().setAuthorEmail("unknown@example.com").setCommitterEmail("author@example.com");
+      assignee = commitProcessor.getAssignee(commitWithCommitter, Collections.singletonList(upstreamIssue), null);
+      Assert.assertEquals(authorUser, assignee);
+
+      // 4. Fallback to upstream issue when downstream issues and commit author/committer have no match
+      MockGitCommit commitWithUnknownAuthor = new MockGitCommit().setAuthorEmail("unknown@example.com").setCommitterEmail("unknown2@example.com");
       assignee = commitProcessor.getAssignee(commitWithUnknownAuthor, Collections.singletonList(upstreamIssue), null);
       Assert.assertEquals(upstreamUser, assignee);
+
+      // 4b. Reporter and creator are not used as fallbacks
+      Issue upstreamIssueWithReporterOnly = new Issue().setReporter("up-user").setCreator("up-user");
+      assignee = commitProcessor.getAssignee(commitWithUnknownAuthor, Collections.singletonList(upstreamIssueWithReporterOnly), null);
+      Assert.assertEquals(defaultUser, assignee);
 
       // 5. Fallback to default user when neither commit nor issues match
       assignee = commitProcessor.getAssignee(commitWithUnknownAuthor, null, null);
